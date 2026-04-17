@@ -1,0 +1,38 @@
+const subscribers = new Map<string, Set<ReadableStreamDefaultController>>();
+
+export function addSubscriber(
+  channelId: string,
+  controller: ReadableStreamDefaultController,
+) {
+  if (!subscribers.has(channelId)) {
+    subscribers.set(channelId, new Set());
+  }
+
+  subscribers.get(channelId)?.add(controller);
+}
+
+export function removeSubscriber(
+  channelId: string,
+  controller: ReadableStreamDefaultController,
+) {
+  const controllers = subscribers.get(channelId);
+  if (!controllers) return;
+
+  controllers.delete(controller);
+
+  if (controllers.size === 0) subscribers.delete(channelId);
+}
+
+export function broadcastToChannel(channelId: string, data: unknown) {
+  const controllers = subscribers.get(channelId);
+  if (!controllers) return;
+
+  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
+  controllers.forEach((cntrl) => {
+    try {
+      cntrl.enqueue(encoded);
+    } catch (error) {
+      controllers.delete(cntrl);
+    }
+  });
+}

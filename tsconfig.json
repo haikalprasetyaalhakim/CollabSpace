@@ -18,9 +18,27 @@
         "name": "next"
       }
     ],
+    // Must Have
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedSideEffectImports": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+
+    // Optional but highly suggested
+    // "noUncheckedIndexedAccess": true,
+    // "noPropertyAccessFromIndexSignature": true,
+
+    // Personal Reference
+    "noImplicitOverride": true,
+    "noErrorTruncation": false,
+    "exactOptionalPropertyTypes": true,
+
+    "checkJs": true,
+    "types": ["bun-types"]
   },
   "include": [
     "next-env.d.ts",
