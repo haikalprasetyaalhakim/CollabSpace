@@ -6,13 +6,18 @@ import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import z from "zod";
 
-const SendDmSchema = z.object({
-  conversationId: z.string().min(1, "conversationId is required"),
-  content: z
-    .string()
-    .min(1, "Message cannot be empty")
-    .max(2000, "Message too long"),
-});
+const SendDmSchema = z
+  .object({
+    conversationId: z.string().min(1, "conversationId is required"),
+    content: z.string().max(2000, "Message too long").optional(),
+    images: z.array(z.url()).max(4).optional(),
+  })
+  .refine(
+    (data) =>
+      (data.content && data.content.trim().length > 0) ||
+      (data.images && data.images.length > 0),
+    { error: "Message must have text or at least one image" },
+  );
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { conversationId, content } = parsed.data;
+  const { conversationId, content, images } = parsed.data;
 
   const conversation = await prisma.conversation.findFirst({
     where: {
@@ -58,7 +63,8 @@ export async function POST(request: NextRequest) {
     data: {
       userId: session.user.id,
       conversationId,
-      content: content.trim(),
+      content: content?.trim() ?? null,
+      images: images ?? [],
     },
     include: {
       user: { select: { id: true, name: true, image: true } },

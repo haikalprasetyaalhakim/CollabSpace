@@ -6,13 +6,18 @@ import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import z from "zod";
 
-const SendMessageSchema = z.object({
-  channelId: z.string().min(1, "channelId is required"),
-  content: z
-    .string()
-    .min(1, "Message cannot be empty")
-    .max(2000, "Message too long"),
-});
+const SendMessageSchema = z
+  .object({
+    channelId: z.string().min(1, "channelId is required"),
+    content: z.string().max(2000, "Message too long").optional(),
+    images: z.array(z.url()).max(4).optional(),
+  })
+  .refine(
+    (data) =>
+      (data.content && data.content.trim().length > 0) ||
+      (data.images && data.images.length > 0),
+    { error: "Message must have text or at least one image" },
+  );
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -47,13 +52,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { channelId, content } = parsed.data;
+  const { channelId, content, images } = parsed.data;
 
   const message = await prisma.message.create({
     data: {
       channelId,
-      content,
+      content: content?.trim() ?? null,
       userId: session.user.id,
+      images: images ?? [],
     },
     include: {
       user: { select: { id: true, name: true, image: true } },

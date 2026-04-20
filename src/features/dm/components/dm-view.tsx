@@ -6,9 +6,11 @@ import { getInitials } from "@/lib/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DmMessageWithUser } from "../queries/get-dm-messages";
 import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
+import { ImageIcon, Send } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { useUploadThing } from "@/hooks/use-avatar-upload";
+import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
 
 type OtherUser = {
   id: string;
@@ -28,12 +30,27 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: session } = authClient.useSession();
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const { startUpload } = useUploadThing("messageImageUploader", {
+    onUploadBegin: () => setIsUploadingImages(true),
+    onClientUploadComplete: (res) => {
+      const urls = res.map((r) => r.ufsUrl);
+      setPendingImages((prev) => [...prev, ...urls]);
+    },
+    onUploadError: (err) => {
+      setIsUploadingImages(false);
+      toast.error(`Image upload failed: ${err.message}`);
+    },
+  });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -62,7 +79,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   );
 
   const handleSend = async () => {
-    if (!input.trim() || isSending) return;
+    if ((!input.trim() && pendingImages.length === 0) || isSending) return;
     setIsSending(true);
 
     const tempId = crypto.randomUUID();
@@ -70,10 +87,11 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
       ...prev,
       {
         id: tempId,
-        content: input.trim(),
+        content: input.trim() ?? null,
         conversationId,
         userId: session?.user.id!,
         createdAt: new Date(),
+        images: pendingImages ?? [],
         user: {
           id: session?.user.id!,
           name: session?.user.name!,
@@ -82,12 +100,17 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
       },
     ]);
     setInput("");
+    setPendingImages([]);
 
     try {
       const response = await fetch("/api/dm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, content: input.trim() }),
+        body: JSON.stringify({
+          conversationId,
+          content: input.trim() || undefined,
+          images: pendingImages.length > 0 ? pendingImages : undefined,
+        }),
       });
 
       if (!response.ok) {
@@ -128,6 +151,19 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
     },
     [conversationId],
   );
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    if (pendingImages.length + files.length > MAX_IMAGE_PER_MESSAGE) {
+      toast.error("Maximum 4 images per message");
+      return;
+    }
+
+    startUpload(files);
+    e.target.value = "";
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -192,8 +228,48 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         </div>
       </div>
 
+      {pendingImages.length > 0 && (
+        <div className="flex gap-2 flex-wrap px-4 pb-2">
+          {pendingImages.map((url, i) => (
+            <div key={url} className="relative group">
+              <img
+                src={url}
+                alt=""
+                className="size-16 rounded-lg object-cover border-zinc-200 dark:border-zinc-700"
+              />
+              <button className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors">
+                x
+              </button>
+            </div>
+          ))}
+          {isUploadingImages && (
+            <div className="size-16 rounded-lg border border-zinc-200 dark:border-zinc-700 flex items-center justify-center bg-zinc-50 dark:bg-zinc-800">
+              <span className="size-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
         <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/png, image/jpeg, image/webp"
+            multiple
+            className="hidden"
+            onChange={handleImageSelect}
+          />
+          <button
+            type="button"
+            className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={
+              pendingImages.length >= MAX_IMAGE_PER_MESSAGE || isUploadingImages
+            }
+          >
+            <ImageIcon className="size-4" />
+          </button>
           <textarea
             value={input}
             onChange={handleInputChange}
@@ -241,9 +317,28 @@ function MessageItem({ message }: { message: DmMessageWithUser }) {
             {time}
           </span>
         </div>
-        <p className="text-sm text-zinc-700 dark:text-zinc-300 wrap-break-word">
-          {message.content}
-        </p>
+        {message.content && (
+          <p className="text-sm text-zinc-700 dark:text-zinc-300 wrap-break-word">
+            {message.content}
+          </p>
+        )}
+        {message.images.length > 0 && (
+          <div
+            className={`grid gap-1 mt-1 max-w-xs ${message.images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
+          >
+            {message.images.map((url) => (
+              <img
+                key={url}
+                src={url}
+                alt="Message image"
+                className="rounded-lg object-cover w-full"
+                style={{
+                  maxHeight: message.images.length === 1 ? "300px" : "150px",
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

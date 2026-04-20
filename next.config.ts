@@ -8,7 +8,7 @@ const cspHeader = `
   https://lh3.googleusercontent.com
   https://ufs.sh
   https://*.ufs.sh;
-  connect-src 'self';
+  connect-src 'self' https://*.ingest.uploadthing.com https://*.uploadthing.com;
   font-src 'self';
   frame-src 'none';
   object-src 'none';

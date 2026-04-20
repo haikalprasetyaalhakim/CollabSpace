@@ -15,3 +15,5 @@ export const statusColor: Record<UserStatus, string> = {
   busy: "bg-red-500",
   offline: "bg-zinc-400",
 };
+
+export const MAX_IMAGE_PER_MESSAGE = 4;
