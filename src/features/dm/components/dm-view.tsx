@@ -50,7 +50,8 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         prev.map((item) => {
           if (item.remoteUrl) return item;
           const match = res.find((r) => r.name === item.name);
-          if (match) return { ...item, remoteUrl: match.ufsUrl };
+          if (match)
+            return { ...item, remoteUrl: match.ufsUrl, key: match.key };
           return item;
         }),
       );
@@ -62,9 +63,25 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
     },
   });
 
+  const deleteUploadedFiles = async (images: PendingImage[]) => {
+    const keys = images
+      .filter((img) => img.key !== null)
+      .map((img) => img.key!);
+    if (keys.length === 0) return;
+
+    await fetch("/api/uploadthing/delete-files", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys }),
+    }).catch((err) => {
+      console.error("[deleteUploadedFiles] Failed:", err);
+    });
+  };
+
   useEffect(() => {
     revokeAllRef.current = () => {
       pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
+      deleteUploadedFiles(pendingImages);
     };
   }, [pendingImages]);
 
@@ -203,6 +220,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
       localUrl: URL.createObjectURL(file),
       remoteUrl: null,
       name: file.name,
+      key: null,
     }));
 
     setPendingImages((prev) => [...prev, ...newPending]);
@@ -293,6 +311,9 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
                 <button
                   onClick={() => {
                     URL.revokeObjectURL(img.localUrl);
+                    if (img.key) {
+                      deleteUploadedFiles([img]);
+                    }
                     setPendingImages((prev) =>
                       prev.filter((_, idx) => idx !== i),
                     );

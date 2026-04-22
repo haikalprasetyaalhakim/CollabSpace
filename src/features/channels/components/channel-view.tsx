@@ -119,6 +119,7 @@ export function ChannelView({
   useEffect(() => {
     revokeAllRef.current = () => {
       pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
+      deleteUploadedFiles(pendingImages);
     };
   }, [pendingImages]);
 
@@ -129,7 +130,8 @@ export function ChannelView({
         prev.map((item) => {
           if (item.remoteUrl) return item;
           const match = res.find((r) => r.name === item.name);
-          if (match) return { ...item, remoteUrl: match.ufsUrl };
+          if (match)
+            return { ...item, remoteUrl: match.ufsUrl, key: match.key };
           return item;
         }),
       );
@@ -140,6 +142,22 @@ export function ChannelView({
       toast.error(`Image upload failed: ${err.message}`);
     },
   });
+
+  const deleteUploadedFiles = async (images: PendingImage[]) => {
+    const keys = images
+      .filter((img) => img.key !== null)
+      .map((img) => img.key!);
+
+    if (keys.length === 0) return;
+
+    await fetch("/api/uploadthing/delete-files", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys }),
+    }).catch((err) => {
+      console.error("[deleteUploadedFiles] Failed:", err);
+    });
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -248,6 +266,7 @@ export function ChannelView({
       localUrl: URL.createObjectURL(file),
       remoteUrl: null,
       name: file.name,
+      key: null,
     }));
 
     setPendingImages((prev) => [...prev, ...newPending]);
@@ -288,6 +307,9 @@ export function ChannelView({
                 <button
                   onClick={() => {
                     URL.revokeObjectURL(img.localUrl);
+                    if (img.key) {
+                      deleteUploadedFiles([img]);
+                    }
                     setPendingImages((prev) =>
                       prev.filter((_, idx) => idx !== i),
                     );
