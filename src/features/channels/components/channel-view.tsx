@@ -10,6 +10,7 @@ import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import { PendingImage } from "@/types/message";
 
 type Props = {
   channelId: string;
@@ -94,19 +95,32 @@ export function ChannelView({
   const [messages, setMessages] = useState<MessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   const { data: session } = authClient.useSession();
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const revokeAllRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    revokeAllRef.current = () => {
+      pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
+    };
+  }, [pendingImages]);
 
   const { startUpload } = useUploadThing("messageImageUploader", {
     onUploadBegin: () => setIsUploadingImages(true),
     onClientUploadComplete: (res) => {
-      const urls = res.map((r) => r.ufsUrl);
-      setPendingImages((prev) => [...prev, ...urls]);
+      setPendingImages((prev) =>
+        prev.map((item) => {
+          if (item.remoteUrl) return item;
+          const match = res.find((r) => r.name === item.name);
+          if (match) return { ...item, remoteUrl: match.ufsUrl };
+          return item;
+        }),
+      );
       setIsUploadingImages(false);
     },
     onUploadError: (err) => {
@@ -128,8 +142,18 @@ export function ChannelView({
 
   useChannelSSE<MessageWithUser>(channelId, handleNewMessage);
 
+  useEffect(() => {
+    return () => revokeAllRef.current();
+  }, []);
+
   const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || isSending) return;
+    const allUploaded = pendingImages.every((img) => img.remoteUrl !== null);
+    if (
+      (!input.trim() && pendingImages.length === 0) ||
+      !allUploaded ||
+      isSending
+    )
+      return;
 
     setIsSending(true);
 
@@ -140,7 +164,7 @@ export function ChannelView({
       {
         id: tempId,
         content: input.trim(),
-        images: pendingImages,
+        images: pendingImages.map((img) => img.remoteUrl ?? img.localUrl),
         channelId,
         user: {
           id: session?.user.id!,
@@ -161,7 +185,10 @@ export function ChannelView({
         body: JSON.stringify({
           channelId,
           content: input.trim() || undefined,
-          images: pendingImages.length > 0 ? pendingImages : undefined,
+          images:
+            pendingImages.length > 0
+              ? pendingImages.map((img) => img.remoteUrl!)
+              : undefined,
         }),
       });
 
@@ -174,6 +201,8 @@ export function ChannelView({
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? newMessage : m)),
         );
+        pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
+        setPendingImages([]);
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -199,6 +228,13 @@ export function ChannelView({
       return;
     }
 
+    const newPending: PendingImage[] = files.map((file) => ({
+      localUrl: URL.createObjectURL(file),
+      remoteUrl: null,
+      name: file.name,
+    }));
+
+    setPendingImages((prev) => [...prev, ...newPending]);
     startUpload(files);
     e.target.value = "";
   };
@@ -220,21 +256,31 @@ export function ChannelView({
 
       {pendingImages.length > 0 && (
         <div className="flex gap-2 flex-wrap px-4 pb-2">
-          {pendingImages.map((url, i) => (
-            <div key={url} className="relative group">
+          {pendingImages.map((img, i) => (
+            <div key={img.localUrl} className="relative group">
               <img
-                src={url}
+                src={img.localUrl}
                 alt=""
-                className="size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700"
+                className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${img.remoteUrl ? "opacity-100" : "opacity-60"}`}
               />
-              <button
-                className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors"
-                onClick={() =>
-                  setPendingImages((prev) => prev.filter((_, idx) => idx !== i))
-                }
-              >
-                x
-              </button>
+              {!img.remoteUrl && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                  <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {img.remoteUrl && (
+                <button
+                  onClick={() => {
+                    URL.revokeObjectURL(img.localUrl);
+                    setPendingImages((prev) =>
+                      prev.filter((_, idx) => idx !== i),
+                    );
+                  }}
+                  className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
           {isUploadingImages && (
@@ -276,7 +322,9 @@ export function ChannelView({
           <button
             onClick={handleSend}
             disabled={
-              (!input.trim() && pendingImages.length === 0) || isUploadingImages
+              (!input.trim() && pendingImages.length === 0) ||
+              !pendingImages.every((img) => img.remoteUrl !== null) ||
+              isUploadingImages
             }
             className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
           >

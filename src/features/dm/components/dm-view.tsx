@@ -11,6 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import { PendingImage } from "@/types/message";
 
 type OtherUser = {
   id: string;
@@ -30,27 +31,45 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
-  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const revokeAllRef = useRef<() => void>(() => {});
 
   const { data: session } = authClient.useSession();
 
   const { startUpload } = useUploadThing("messageImageUploader", {
     onUploadBegin: () => setIsUploadingImages(true),
     onClientUploadComplete: (res) => {
-      const urls = res.map((r) => r.ufsUrl);
-      setPendingImages((prev) => [...prev, ...urls]);
+      setPendingImages((prev) =>
+        prev.map((item) => {
+          if (item.remoteUrl) return item;
+          const match = res.find((r) => r.name === item.name);
+          if (match) return { ...item, remoteUrl: match.ufsUrl };
+          return item;
+        }),
+      );
+      setIsUploadingImages(false);
     },
     onUploadError: (err) => {
       setIsUploadingImages(false);
       toast.error(`Image upload failed: ${err.message}`);
     },
   });
+
+  useEffect(() => {
+    revokeAllRef.current = () => {
+      pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
+    };
+  }, [pendingImages]);
+
+  useEffect(() => {
+    return () => revokeAllRef.current();
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -79,7 +98,13 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   );
 
   const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || isSending) return;
+    const allUploaded = pendingImages.every((img) => img.remoteUrl !== null);
+    if (
+      (!input.trim() && pendingImages.length === 0) ||
+      !allUploaded ||
+      isSending
+    )
+      return;
     setIsSending(true);
 
     const tempId = crypto.randomUUID();
@@ -91,7 +116,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         conversationId,
         userId: session?.user.id!,
         createdAt: new Date(),
-        images: pendingImages ?? [],
+        images: pendingImages.map((img) => img.remoteUrl ?? img.localUrl) ?? [],
         user: {
           id: session?.user.id!,
           name: session?.user.name!,
@@ -100,6 +125,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
       },
     ]);
     setInput("");
+    pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
     setPendingImages([]);
 
     try {
@@ -109,7 +135,10 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         body: JSON.stringify({
           conversationId,
           content: input.trim() || undefined,
-          images: pendingImages.length > 0 ? pendingImages : undefined,
+          images:
+            pendingImages.length > 0
+              ? pendingImages.map((img) => img.remoteUrl!)
+              : undefined,
         }),
       });
 
@@ -161,6 +190,13 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
       return;
     }
 
+    const newPending: PendingImage[] = files.map((file) => ({
+      localUrl: URL.createObjectURL(file),
+      remoteUrl: null,
+      name: file.name,
+    }));
+
+    setPendingImages((prev) => [...prev, ...newPending]);
     startUpload(files);
     e.target.value = "";
   };
@@ -230,23 +266,35 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
 
       {pendingImages.length > 0 && (
         <div className="flex gap-2 flex-wrap px-4 pb-2">
-          {pendingImages.map((url, i) => (
-            <div key={url} className="relative group">
+          {pendingImages.map((img, i) => (
+            <div key={img.localUrl} className="relative group">
               <img
-                src={url}
+                src={img.localUrl}
                 alt=""
-                className="size-16 rounded-lg object-cover border-zinc-200 dark:border-zinc-700"
+                className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${
+                  img.remoteUrl ? "opacity-100" : "opacity-60"
+                }`}
               />
-              <button className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors">
-                x
-              </button>
+              {!img.remoteUrl && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                  <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {img.remoteUrl && (
+                <button
+                  onClick={() => {
+                    URL.revokeObjectURL(img.localUrl);
+                    setPendingImages((prev) =>
+                      prev.filter((_, idx) => idx !== i),
+                    );
+                  }}
+                  className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
-          {isUploadingImages && (
-            <div className="size-16 rounded-lg border border-zinc-200 dark:border-zinc-700 flex items-center justify-center bg-zinc-50 dark:bg-zinc-800">
-              <span className="size-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
         </div>
       )}
 
@@ -283,7 +331,11 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
           <Button
             size="icon"
             onClick={handleSend}
-            disabled={!input.trim() || isSending}
+            disabled={
+              (!input.trim() && pendingImages.length === 0) ||
+              isSending ||
+              !pendingImages.every((img) => img.remoteUrl !== null)
+            }
             className="size-7 shrink-0 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0"
           >
             <Send className="size-3.5" />
