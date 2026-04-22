@@ -10,7 +10,7 @@ type TypingPayload = {
 
 export function useChannelSSE<T>(
   channelId: string,
-  onNewMessage: (message: T) => void,
+  onNewMessage: (message: T, clientId?: string) => void,
   onTyping?: (payload: TypingPayload) => void,
 ) {
   useEffect(() => {
@@ -20,7 +20,7 @@ export function useChannelSSE<T>(
       const data = JSON.parse(evt.data);
 
       if (data.type === "new-message") {
-        onNewMessage(data.message as T);
+        onNewMessage(data.message as T, data.clientId as string);
       } else if (data.type === "typing" && onTyping) {
         onTyping({
           userId: data.userId,

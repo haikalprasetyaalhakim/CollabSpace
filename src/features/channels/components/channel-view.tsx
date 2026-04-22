@@ -11,6 +11,7 @@ import { authClient } from "@/lib/auth-client";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
 import { PendingImage } from "@/types/message";
+import { Lightbox } from "@/components/lightbox";
 
 type Props = {
   channelId: string;
@@ -19,6 +20,8 @@ type Props = {
 };
 
 function MessageItem({ message }: { message: MessageWithUser }) {
+  const [lightbox, setLightBox] = useState<{ index: number } | null>(null);
+
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -51,18 +54,27 @@ function MessageItem({ message }: { message: MessageWithUser }) {
           <div
             className={`grid gap-1 mt-1 max-w-xs ${message.images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
           >
-            {message.images.map((url) => (
+            {message.images.map((url, i) => (
               <img
                 key={url}
                 src={url}
                 alt="Message image"
-                className="rounded-lg object-cover w-full"
+                className="rounded-lg object-cover w-full cursor-zoom-in hover:opacity-90 transition-opacity"
                 style={{
                   maxHeight: message.images.length === 1 ? "300px" : "150px",
                 }}
+                onClick={() => setLightBox({ index: i })}
               />
             ))}
           </div>
+        )}
+
+        {lightbox && (
+          <Lightbox
+            images={message.images}
+            startIndex={lightbox.index}
+            onClose={() => setLightBox(null)}
+          />
         )}
       </div>
     </div>
@@ -133,12 +145,19 @@ export function ChannelView({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleNewMessage = useCallback((message: MessageWithUser) => {
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === message.id)) return prev;
-      return [...prev, message];
-    });
-  }, []);
+  const handleNewMessage = useCallback(
+    (message: MessageWithUser, clientId?: string) => {
+      setMessages((prev) => {
+        if (clientId && prev.some((m) => m.id === clientId)) {
+          return prev.map((m) => (m.id === clientId ? message : m));
+        }
+
+        if (prev.some((m) => m.id === message.id)) return prev;
+        return [...prev, message];
+      });
+    },
+    [],
+  );
 
   useChannelSSE<MessageWithUser>(channelId, handleNewMessage);
 
@@ -189,6 +208,7 @@ export function ChannelView({
             pendingImages.length > 0
               ? pendingImages.map((img) => img.remoteUrl!)
               : undefined,
+          clientId: tempId,
         }),
       });
 
@@ -197,10 +217,6 @@ export function ChannelView({
         const error = await response.json();
         toast.error(error.error ?? "Failed to send message");
       } else {
-        const newMessage: MessageWithUser = await response.json();
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? newMessage : m)),
-        );
         pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
         setPendingImages([]);
       }
@@ -283,11 +299,6 @@ export function ChannelView({
               )}
             </div>
           ))}
-          {isUploadingImages && (
-            <div className="size-16 rounded-lg border border-zinc-200 dark:border-zinc-700 flex items-center justify-center bg-zinc-50 dark:bg-zinc-800">
-              <span className="size-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
         </div>
       )}
 
@@ -305,7 +316,9 @@ export function ChannelView({
             type="button"
             className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
             onClick={() => imageInputRef.current?.click()}
-            disabled={pendingImages.length >= 4 || isUploadingImages}
+            disabled={
+              pendingImages.length >= MAX_IMAGE_PER_MESSAGE || isUploadingImages
+            }
           >
             <ImageIcon className="size-4" />
           </button>

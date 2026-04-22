@@ -11,6 +11,7 @@ const SendMessageSchema = z
     channelId: z.string().min(1, "channelId is required"),
     content: z.string().max(2000, "Message too long").optional(),
     images: z.array(z.url()).max(4).optional(),
+    clientId: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -66,7 +67,11 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  broadcastToChannel(channelId, { type: "new-message", message });
+  broadcastToChannel(channelId, {
+    type: "new-message",
+    message,
+    clientId: parsed.data.clientId,
+  });
 
   return Response.json(message, { status: 201 });
 }

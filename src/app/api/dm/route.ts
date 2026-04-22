@@ -11,6 +11,7 @@ const SendDmSchema = z
     conversationId: z.string().min(1, "conversationId is required"),
     content: z.string().max(2000, "Message too long").optional(),
     images: z.array(z.url()).max(4).optional(),
+    clientId: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { conversationId, content, images } = parsed.data;
+  const { conversationId, content, images, clientId } = parsed.data;
 
   const conversation = await prisma.conversation.findFirst({
     where: {
@@ -71,7 +72,11 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  broadcastToChannel(`dm-${conversationId}`, { type: "new-message", message });
+  broadcastToChannel(`dm-${conversationId}`, {
+    type: "new-message",
+    message,
+    clientId,
+  });
 
   return Response.json(message, { status: 201 });
 }

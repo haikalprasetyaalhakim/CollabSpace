@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
 import { PendingImage } from "@/types/message";
+import { Lightbox } from "@/components/lightbox";
 
 type OtherUser = {
   id: string;
@@ -75,12 +76,19 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleNewMessage = useCallback((message: DmMessageWithUser) => {
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === message.id)) return prev;
-      return [...prev, message];
-    });
-  }, []);
+  const handleNewMessage = useCallback(
+    (message: DmMessageWithUser, clientId?: string) => {
+      setMessages((prev) => {
+        if (clientId && prev.some((d) => d.id === clientId)) {
+          return prev.map((d) => (d.id === clientId ? message : d));
+        }
+
+        if (prev.some((d) => d.id === clientId)) return prev;
+        return [...prev, message];
+      });
+    },
+    [],
+  );
 
   const handleTyping = useCallback(
     (payload: { userId: string; isTyping: boolean }) => {
@@ -139,6 +147,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
             pendingImages.length > 0
               ? pendingImages.map((img) => img.remoteUrl!)
               : undefined,
+          clientId: tempId,
         }),
       });
 
@@ -347,6 +356,8 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
 }
 
 function MessageItem({ message }: { message: DmMessageWithUser }) {
+  const [lightbox, setLightbox] = useState<{ index: number } | null>(null);
+
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -378,18 +389,27 @@ function MessageItem({ message }: { message: DmMessageWithUser }) {
           <div
             className={`grid gap-1 mt-1 max-w-xs ${message.images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
           >
-            {message.images.map((url) => (
+            {message.images.map((url, i) => (
               <img
                 key={url}
                 src={url}
                 alt="Message image"
-                className="rounded-lg object-cover w-full"
+                className="rounded-lg object-cover w-full cursor-zoom-in hover:opacity-90 transition-opacity"
                 style={{
                   maxHeight: message.images.length === 1 ? "300px" : "150px",
                 }}
+                onClick={() => setLightbox({ index: i })}
               />
             ))}
           </div>
+        )}
+
+        {lightbox && (
+          <Lightbox
+            images={message.images}
+            startIndex={lightbox.index}
+            onClose={() => setLightbox(null)}
+          />
         )}
       </div>
     </div>
