@@ -1,17 +1,17 @@
 "use client";
 
-import { Hash, ImageIcon, Send } from "lucide-react";
-import { MessageWithUser } from "../queries/get-channel-messages";
-import { getInitials } from "@/lib/utils";
+import { ImageGrid } from "@/components/image-grid";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
-import { useUploadThing } from "@/hooks/use-avatar-upload";
-import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import { getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { Lightbox } from "@/components/lightbox";
+import { Hash, ImageIcon, Send } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { MessageWithUser } from "../queries/get-channel-messages";
 
 type Props = {
   channelId: string;
@@ -20,8 +20,6 @@ type Props = {
 };
 
 function MessageItem({ message }: { message: MessageWithUser }) {
-  const [lightbox, setLightBox] = useState<{ index: number } | null>(null);
-
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -50,32 +48,7 @@ function MessageItem({ message }: { message: MessageWithUser }) {
             {message.content}
           </p>
         )}
-        {message.images.length > 0 && (
-          <div
-            className={`grid gap-1 mt-1 max-w-xs ${message.images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
-          >
-            {message.images.map((url, i) => (
-              <img
-                key={url}
-                src={url}
-                alt="Message image"
-                className="rounded-lg object-cover w-full cursor-zoom-in hover:opacity-90 transition-opacity"
-                style={{
-                  maxHeight: message.images.length === 1 ? "300px" : "150px",
-                }}
-                onClick={() => setLightBox({ index: i })}
-              />
-            ))}
-          </div>
-        )}
-
-        {lightbox && (
-          <Lightbox
-            images={message.images}
-            startIndex={lightbox.index}
-            onClose={() => setLightBox(null)}
-          />
-        )}
+        {message.images.length > 0 && <ImageGrid images={message.images} />}
       </div>
     </div>
   );

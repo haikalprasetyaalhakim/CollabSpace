@@ -1,18 +1,18 @@
 "use client";
 
+import { ImageGrid } from "@/components/image-grid";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useChannelSSE } from "@/hooks/use-channel-sse";
-import { getInitials } from "@/lib/utils";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { DmMessageWithUser } from "../queries/get-dm-messages";
 import { Button } from "@/components/ui/button";
-import { ImageIcon, Send } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
-import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import { useUploadThing } from "@/hooks/use-avatar-upload";
+import { useChannelSSE } from "@/hooks/use-channel-sse";
+import { authClient } from "@/lib/auth-client";
+import { getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { Lightbox } from "@/components/lightbox";
+import { ImageIcon, Send } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { DmMessageWithUser } from "../queries/get-dm-messages";
 
 type OtherUser = {
   id: string;
@@ -377,8 +377,6 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
 }
 
 function MessageItem({ message }: { message: DmMessageWithUser }) {
-  const [lightbox, setLightbox] = useState<{ index: number } | null>(null);
-
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -406,32 +404,7 @@ function MessageItem({ message }: { message: DmMessageWithUser }) {
             {message.content}
           </p>
         )}
-        {message.images.length > 0 && (
-          <div
-            className={`grid gap-1 mt-1 max-w-xs ${message.images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
-          >
-            {message.images.map((url, i) => (
-              <img
-                key={url}
-                src={url}
-                alt="Message image"
-                className="rounded-lg object-cover w-full cursor-zoom-in hover:opacity-90 transition-opacity"
-                style={{
-                  maxHeight: message.images.length === 1 ? "300px" : "150px",
-                }}
-                onClick={() => setLightbox({ index: i })}
-              />
-            ))}
-          </div>
-        )}
-
-        {lightbox && (
-          <Lightbox
-            images={message.images}
-            startIndex={lightbox.index}
-            onClose={() => setLightbox(null)}
-          />
-        )}
+        {message.images.length > 0 && <ImageGrid images={message.images} />}
       </div>
     </div>
   );
