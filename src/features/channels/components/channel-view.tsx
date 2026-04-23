@@ -2,13 +2,24 @@
 
 import { ImageGrid } from "@/components/image-grid";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { Hash, ImageIcon, Send } from "lucide-react";
+import { Hash, ImageIcon, Pencil, Send, Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
@@ -19,14 +30,27 @@ type Props = {
   initialMessages: MessageWithUser[];
 };
 
-function MessageItem({ message }: { message: MessageWithUser }) {
+function MessageItem({
+  message,
+  currentUserId,
+  onEdit,
+  onDelete,
+}: {
+  message: MessageWithUser;
+  currentUserId: string;
+  onEdit: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50">
+    <div className="relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50">
       <Avatar className="size-8">
         <AvatarImage src={message.user.image ?? ""} />
         <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
@@ -43,13 +67,96 @@ function MessageItem({ message }: { message: MessageWithUser }) {
             {time}
           </span>
         </div>
-        {message.content && (
-          <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
-            {message.content}
-          </p>
+
+        {isEditing ? (
+          <div className="flex flex-col gap-1.5">
+            <textarea
+              ref={editRef}
+              defaultValue={message.content ?? ""}
+              rows={1}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setIsEditing(false);
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  const content = editRef.current?.value.trim();
+                  if (content) {
+                    onEdit(message.id, content);
+                    setIsEditing(false);
+                  }
+                }
+              }}
+              className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-md px-2 py-1 resize-none outline-none w-full"
+              style={{ fieldSizing: "content" }}
+            />
+            <div className="flex items-center gap-1">
+              <button
+                className="text-xs px-2 py-0.5 rounded bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
+                onClick={() => {
+                  const content = editRef.current?.value.trim();
+                  if (content) {
+                    onEdit(message.id, content);
+                    setIsEditing(false);
+                  }
+                }}
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="text-xs px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          message.content && (
+            <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
+              {message.content}
+            </p>
+          )
         )}
+
         {message.images.length > 0 && <ImageGrid images={message.images} />}
       </div>
+
+      {message.userId === currentUserId && (
+        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-sm p-0.5">
+          {message.content && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              <Pencil className="size-3.5" />
+            </button>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors">
+                <Trash2 className="size-3.5" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete message?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. The message will be permanently deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(message.id)}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }
@@ -150,7 +257,21 @@ export function ChannelView({
     [],
   );
 
-  useChannelSSE<MessageWithUser>(channelId, handleNewMessage);
+  const handleMessageUpdated = useCallback((message: MessageWithUser) => {
+    setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)));
+  }, []);
+
+  const handleMessageDeleted = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }, []);
+
+  useChannelSSE<MessageWithUser>(
+    channelId,
+    handleNewMessage,
+    undefined,
+    handleMessageUpdated,
+    handleMessageDeleted,
+  );
 
   useEffect(() => {
     return () => revokeAllRef.current();
@@ -247,6 +368,47 @@ export function ChannelView({
     e.target.value = "";
   };
 
+  const handleEditMessage = useCallback(async (id: string, content: string) => {
+    let previousContent: string | null | undefined;
+
+    setMessages((prev) => {
+      previousContent = prev.find((m) => m.id === id)?.content;
+      return prev.map((m) => (m.id === id ? { ...m, content } : m));
+    });
+
+    try {
+      const res = await fetch(`/api/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, content: previousContent! } : m,
+          ),
+        );
+
+        toast.error("Failed to edit message");
+      }
+    } catch (error) {
+      toast.error("Network error");
+    }
+  }, []);
+
+  const handleDeleteMessage = useCallback(async (id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+
+    try {
+      const res = await fetch(`/api/messages/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) toast.error("Failed to delete message");
+    } catch (error) {
+      toast.error("Network error");
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-[calc(100svh-49px)]">
       <div className="flex-1 overflow-y-auto py-4">
@@ -255,7 +417,13 @@ export function ChannelView({
         ) : (
           <div className="space-y-1">
             {messages.map((msg) => (
-              <MessageItem key={msg.id} message={msg} />
+              <MessageItem
+                key={msg.id}
+                message={msg}
+                currentUserId={session?.user.id!}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
+              />
             ))}
             <div ref={bottomRef} />
           </div>

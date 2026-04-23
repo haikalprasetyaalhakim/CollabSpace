@@ -12,6 +12,8 @@ export function useChannelSSE<T>(
   channelId: string,
   onNewMessage: (message: T, clientId?: string) => void,
   onTyping?: (payload: TypingPayload) => void,
+  onMessageUpdated?: (message: T) => void,
+  onMessageDeleted?: (messageId: string) => void,
 ) {
   useEffect(() => {
     const eventSource = new EventSource(`/api/sse?channelId=${channelId}`);
@@ -27,6 +29,10 @@ export function useChannelSSE<T>(
           username: data.username,
           isTyping: data.isTyping,
         });
+      } else if (data.type === "message-updated" && onMessageUpdated) {
+        onMessageUpdated(data.message as T);
+      } else if (data.type === "message-deleted" && onMessageDeleted) {
+        onMessageDeleted(data.messageId as string);
       }
     };
 
@@ -37,5 +43,5 @@ export function useChannelSSE<T>(
     return () => {
       eventSource.close();
     };
-  }, [channelId, onNewMessage, onTyping]);
+  }, [channelId, onNewMessage, onTyping, onMessageUpdated, onMessageDeleted]);
 }
