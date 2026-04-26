@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import NewDmDialog from "@/features/dm/components/new-dm-dialog";
 import { ConversationWithUser } from "@/features/dm/queries/get-user-conversations";
+import { usePresence } from "@/hooks/use-presence";
 import { getInitials } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -24,6 +25,7 @@ type Props = {
 
 export default function SidebarDirectMessages({ conversations }: Props) {
   const pathname = usePathname();
+  const onlineUserIds = usePresence();
 
   const [newDmOpen, setNewDmOpen] = useState(false);
 
@@ -47,12 +49,17 @@ export default function SidebarDirectMessages({ conversations }: Props) {
                   isActive={pathname === `/dm/${conv.id}`}
                 >
                   <Link href={`/dm/${conv.id}`}>
-                    <Avatar className="size-7">
-                      <AvatarImage src={conv.otherUser.image ?? ""} />
-                      <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                        {getInitials(conv.otherUser.name)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative shrink-0">
+                      <Avatar className="size-7">
+                        <AvatarImage src={conv.otherUser.image ?? ""} />
+                        <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                          {getInitials(conv.otherUser.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {onlineUserIds.has(conv.otherUser.id) && (
+                        <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 border-2 border-white dark:border-[#09090b]" />
+                      )}
+                    </div>
                     <span className="truncate">{conv.otherUser.name}</span>
                   </Link>
                 </SidebarMenuButton>

@@ -69,7 +69,7 @@ function MessageItem({
         </div>
 
         {isEditing ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2 mt-1">
             <textarea
               ref={editRef}
               defaultValue={message.content ?? ""}
@@ -86,12 +86,12 @@ function MessageItem({
                   }
                 }
               }}
-              className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-md px-2 py-1 resize-none outline-none w-full"
+              className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md px-3 py-2 resize-none outline-none w-full focus:ring-2 focus:ring-zinc-400/50 dark:focus:ring-zinc-500/50 transition-shadow"
               style={{ fieldSizing: "content" }}
             />
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <button
-                className="text-xs px-2 py-0.5 rounded bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
+                className="text-xs font-medium px-3 py-1 rounded-md bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
                 onClick={() => {
                   const content = editRef.current?.value.trim();
                   if (content) {
@@ -104,11 +104,14 @@ function MessageItem({
               </button>
               <button
                 onClick={() => setIsEditing(false)}
-                className="text-xs px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                className="text-xs font-medium px-3 py-1 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
                 Cancel
               </button>
             </div>
+            <span className="text-[11px] text-zinc-400">
+              Press Enter to save · Esc to cancel
+            </span>
           </div>
         ) : (
           message.content && (
@@ -121,8 +124,8 @@ function MessageItem({
         {message.images.length > 0 && <ImageGrid images={message.images} />}
       </div>
 
-      {message.userId === currentUserId && (
-        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-sm p-0.5">
+      {message.userId === currentUserId && !isEditing && (
+        <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 transition-all flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-md">
           {message.content && (
             <button
               onClick={() => setIsEditing(true)}
@@ -141,7 +144,8 @@ function MessageItem({
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete message?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. The message will be permanently deleted.
+                  This action cannot be undone. The message will be permanently
+                  deleted.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

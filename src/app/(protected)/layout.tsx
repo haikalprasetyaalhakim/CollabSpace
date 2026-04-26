@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { getUserChannels } from "@/features/channels/queries/get-user-channels";
 import AppSidebar from "@/features/dashboard/components/app-sidebar";
 import { getUserConversations } from "@/features/dm/queries/get-user-conversations";
+import { PresenceProvider } from "@/hooks/use-presence";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -25,8 +26,10 @@ export default async function Layout({
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
-        <AppSidebar channels={channels} conversations={conversations} />
-        {children}
+        <PresenceProvider>
+          <AppSidebar channels={channels} conversations={conversations} />
+          {children}
+        </PresenceProvider>
       </SidebarProvider>
     </TooltipProvider>
   );
