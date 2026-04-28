@@ -13,6 +13,7 @@ import {
 import NewDmDialog from "@/features/dm/components/new-dm-dialog";
 import { ConversationWithUser } from "@/features/dm/queries/get-user-conversations";
 import { usePresence } from "@/hooks/use-presence";
+import { useUnread } from "@/hooks/use-unread";
 import { getInitials } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -26,6 +27,7 @@ type Props = {
 export default function SidebarDirectMessages({ conversations }: Props) {
   const pathname = usePathname();
   const onlineUserIds = usePresence();
+  const { conversationUnread } = useUnread();
 
   const [newDmOpen, setNewDmOpen] = useState(false);
 
@@ -48,19 +50,31 @@ export default function SidebarDirectMessages({ conversations }: Props) {
                   tooltip={conv.otherUser.name}
                   isActive={pathname === `/dm/${conv.id}`}
                 >
-                  <Link href={`/dm/${conv.id}`}>
-                    <div className="relative shrink-0">
-                      <Avatar className="size-7">
-                        <AvatarImage src={conv.otherUser.image ?? ""} />
-                        <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                          {getInitials(conv.otherUser.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {onlineUserIds.has(conv.otherUser.id) && (
-                        <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 border-2 border-white dark:border-[#09090b]" />
-                      )}
+                  <Link
+                    href={`/dm/${conv.id}`}
+                    className="flex items-center justify-between w-full gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="relative shrink-0">
+                        <Avatar className="size-7">
+                          <AvatarImage src={conv.otherUser.image ?? ""} />
+                          <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                            {getInitials(conv.otherUser.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {onlineUserIds.has(conv.otherUser.id) && (
+                          <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 border-2 border-white dark:border-[#09090b]" />
+                        )}
+                      </div>
+                      <span className="truncate">{conv.otherUser.name}</span>
                     </div>
-                    <span className="truncate">{conv.otherUser.name}</span>
+                    {!!conversationUnread[conv.id] && (
+                      <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-[10px] font-semibold flex items-center justify-center px-1">
+                        {conversationUnread[conv.id] > 99
+                          ? "99+"
+                          : conversationUnread[conv.id]}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

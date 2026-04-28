@@ -30,9 +30,11 @@ model User {
   channelMembers ChannelMember[]
   messages       Message[]
 
-  conversationsAsOne Conversation[]  @relation("ConversationMemberOne")
-  conversationsAsTwo Conversation[]  @relation("ConversationMemberTwo")
+  conversationsAsOne Conversation[]     @relation("ConversationMemberOne")
+  conversationsAsTwo Conversation[]     @relation("ConversationMemberTwo")
   directMessages     DirectMessage[]
+  channelReads       ChannelRead[]
+  conversationReads  ConversationRead[]
 
   @@unique([email])
   @@map("user")
@@ -94,6 +96,7 @@ model Channel {
   updatedAt      DateTime        @updatedAt
   channelMembers ChannelMember[]
   messages       Message[]
+  channelReads   ChannelRead[]
 }
 
 model ChannelMember {
@@ -127,7 +130,8 @@ model Conversation {
   memberTwoId String
   memberTwo   User   @relation("ConversationMemberTwo", fields: [memberTwoId], references: [id], onDelete: Cascade)
 
-  directMessaages DirectMessage[]
+  directMessaages   DirectMessage[]
+  conversationReads ConversationRead[]
 
   @@unique([memberOneId, memberTwoId])
 }
@@ -143,4 +147,26 @@ model DirectMessage {
 
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model ChannelRead {
+  userId     String
+  channelId  String
+  lastReadAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([userId, channelId])
+}
+
+model ConversationRead {
+  userId         String
+  conversationId String
+  lastReadAt     DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, conversationId])
 }

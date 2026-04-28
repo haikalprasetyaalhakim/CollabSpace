@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 import BrowserChannelsDialog from "@/features/channels/components/browser-channels-dialog";
 import CreateChannelDialog from "@/features/channels/components/create-channel-dialog";
+import { useUnread } from "@/hooks/use-unread";
 import { Hash, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,6 +23,8 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const pathname = usePathname();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
+
+  const { channelUnread } = useUnread();
 
   return (
     <>
@@ -42,9 +45,21 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
                   tooltip={`#${channel.name}`}
                   isActive={pathname === `/channels/${channel.id}`}
                 >
-                  <Link href={`/channels/${channel.id}`}>
-                    <Hash />
-                    <span>{channel.name}</span>
+                  <Link
+                    href={`/channels/${channel.id}`}
+                    className="flex items-center justify-between w-full gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Hash className="shrink-0" />
+                      <span className="truncate">{channel.name}</span>
+                    </div>
+                    {!!channelUnread[channel.id] && (
+                      <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-[10px] font-semibold flex items-center justify-center px-1 ">
+                        {channelUnread[channel.id] > 99
+                          ? "99+"
+                          : channelUnread[channel.id]}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

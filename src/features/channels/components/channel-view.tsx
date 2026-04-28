@@ -23,6 +23,7 @@ import { Hash, ImageIcon, Pencil, Send, Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
+import { useUnread } from "@/hooks/use-unread";
 
 type Props = {
   channelId: string;
@@ -188,6 +189,8 @@ export function ChannelView({
   channelName,
   initialMessages,
 }: Props) {
+  const { markChannelRead } = useUnread();
+
   const [messages, setMessages] = useState<MessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -247,6 +250,10 @@ export function ChannelView({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    markChannelRead(channelId);
+  }, [markChannelRead, channelId]);
+
   const handleNewMessage = useCallback(
     (message: MessageWithUser, clientId?: string) => {
       setMessages((prev) => {
@@ -257,6 +264,7 @@ export function ChannelView({
         if (prev.some((m) => m.id === message.id)) return prev;
         return [...prev, message];
       });
+      markChannelRead(channelId);
     },
     [],
   );

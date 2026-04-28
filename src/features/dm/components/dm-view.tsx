@@ -24,6 +24,7 @@ import { ImageIcon, Pencil, Send, Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DmMessageWithUser } from "../queries/get-dm-messages";
+import { useUnread } from "@/hooks/use-unread";
 
 type OtherUser = {
   id: string;
@@ -38,6 +39,8 @@ type Props = {
 };
 
 export function DmView({ conversationId, initialMessages, otherUser }: Props) {
+  const { markConversationRead } = useUnread();
+
   const [messages, setMessages] =
     useState<DmMessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -101,6 +104,10 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   }, []);
 
   useEffect(() => {
+    markConversationRead(conversationId);
+  }, [markConversationRead, conversationId]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -114,6 +121,8 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         if (prev.some((d) => d.id === clientId)) return prev;
         return [...prev, message];
       });
+
+      markConversationRead(conversationId);
     },
     [],
   );
