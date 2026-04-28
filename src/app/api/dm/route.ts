@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { broadcastToChannel } from "@/lib/sse";
+import { broadcastToUser } from "@/lib/user-notifications";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import z from "zod";
@@ -70,6 +71,16 @@ export async function POST(request: NextRequest) {
     include: {
       user: { select: { id: true, name: true, image: true } },
     },
+  });
+
+  const otherUser =
+    conversation.memberOneId === session.user.id
+      ? conversation.memberTwoId
+      : conversation.memberOneId;
+
+  broadcastToUser(otherUser, {
+    type: "new-dm-message",
+    conversationId,
   });
 
   broadcastToChannel(`dm-${conversationId}`, {

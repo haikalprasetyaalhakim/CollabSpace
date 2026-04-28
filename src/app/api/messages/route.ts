@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { broadcastToChannel } from "@/lib/sse";
+import { broadcastToUser } from "@/lib/user-notifications";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import z from "zod";
@@ -65,6 +66,21 @@ export async function POST(request: NextRequest) {
     include: {
       user: { select: { id: true, name: true, image: true } },
     },
+  });
+
+  const members = await prisma.channelMember.findMany({
+    where: {
+      channelId,
+      userId: { not: session.user.id },
+    },
+    select: { userId: true },
+  });
+
+  members.forEach(({ userId }) => {
+    broadcastToUser(userId, {
+      type: "new-channel-message",
+      channelId,
+    });
   });
 
   broadcastToChannel(channelId, {
