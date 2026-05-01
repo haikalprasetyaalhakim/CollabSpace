@@ -4,6 +4,7 @@ import ChannelMemberPanel from "@/features/channels/components/channel-member-pa
 import { ChannelView } from "@/features/channels/components/channel-view";
 import { LeaveChannelButton } from "@/features/channels/components/leave-channel-button";
 import { getChannelMessages } from "@/features/channels/queries/get-channel-messages";
+import { getPinnedMessageIds } from "@/features/channels/queries/get-pinned-messages";
 import prisma from "@/lib/prisma";
 import { serverCompReqAuth } from "@/lib/server-comp-req-auth";
 import { Hash } from "lucide-react";
@@ -31,35 +32,37 @@ export default async function Page({ params }: Props) {
 
   const { channelId } = await params;
 
-  const [channel, initialMessages, members, membership] = await Promise.all([
-    prisma.channel.findFirst({
-      where: { id: channelId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        _count: { select: { channelMembers: true } },
-      },
-    }),
-    getChannelMessages(channelId),
-    prisma.channelMember.findMany({
-      where: { channelId },
-      include: {
-        user: {
-          select: { id: true, name: true, image: true, status: true },
+  const [channel, initialMessages, members, membership, initialPinnedIds] =
+    await Promise.all([
+      prisma.channel.findFirst({
+        where: { id: channelId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          _count: { select: { channelMembers: true } },
         },
-      },
-      orderBy: { joinedAt: "asc" },
-    }),
-    prisma.channelMember.findUnique({
-      where: {
-        userId_channelId: {
-          userId: session.user.id,
-          channelId,
+      }),
+      getChannelMessages(channelId),
+      prisma.channelMember.findMany({
+        where: { channelId },
+        include: {
+          user: {
+            select: { id: true, name: true, image: true, status: true },
+          },
         },
-      },
-    }),
-  ]);
+        orderBy: { joinedAt: "asc" },
+      }),
+      prisma.channelMember.findUnique({
+        where: {
+          userId_channelId: {
+            userId: session.user.id,
+            channelId,
+          },
+        },
+      }),
+      getPinnedMessageIds(channelId),
+    ]);
 
   if (!channel) notFound();
   if (!membership) redirect("/dashboard");
@@ -91,6 +94,7 @@ export default async function Page({ params }: Props) {
             channelId={channelId}
             channelName={channel.name}
             initialMessages={initialMessages}
+            initialPinnedIds={initialPinnedIds}
           />
         </div>
         <ChannelMemberPanel

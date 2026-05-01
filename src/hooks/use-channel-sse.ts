@@ -13,6 +13,10 @@ type ReactionUpdatePayload = {
   reactions: Array<{ id: string; emoji: string; userId: string }>;
 };
 
+type PinUpdatePayload = {
+  messageId: string;
+};
+
 export function useChannelSSE<T>(
   channelId: string,
   onNewMessage: (message: T, clientId?: string) => void,
@@ -20,6 +24,7 @@ export function useChannelSSE<T>(
   onMessageUpdated?: (message: T) => void,
   onMessageDeleted?: (messageId: string) => void,
   onReactionUpdated?: (payload: ReactionUpdatePayload) => void,
+  onPinUpdated?: (payload: PinUpdatePayload) => void,
 ) {
   useEffect(() => {
     const eventSource = new EventSource(`/api/sse?channelId=${channelId}`);
@@ -44,6 +49,8 @@ export function useChannelSSE<T>(
           messageId: data.messageId as string,
           reactions: data.reactions as ReactionUpdatePayload["reactions"],
         });
+      } else if (data.type === "pin-updated" && onPinUpdated) {
+        onPinUpdated({ messageId: data.messageId as string });
       }
     };
 
@@ -61,5 +68,6 @@ export function useChannelSSE<T>(
     onMessageUpdated,
     onMessageDeleted,
     onReactionUpdated,
+    onPinUpdated,
   ]);
 }

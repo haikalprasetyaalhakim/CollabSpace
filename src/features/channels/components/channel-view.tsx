@@ -23,6 +23,7 @@ import {
   Hash,
   ImageIcon,
   Pencil,
+  Pin,
   Reply,
   Send,
   SmilePlus,
@@ -34,12 +35,6 @@ import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
 import { useUnread } from "@/hooks/use-unread";
 
-type Props = {
-  channelId: string;
-  channelName: string;
-  initialMessages: MessageWithUser[];
-};
-
 function MessageItem({
   message,
   currentUserId,
@@ -47,6 +42,8 @@ function MessageItem({
   onDelete,
   onReaction,
   onReply,
+  onPin,
+  isPinned,
 }: {
   message: MessageWithUser;
   currentUserId: string;
@@ -54,6 +51,8 @@ function MessageItem({
   onDelete: (id: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
   onReply: (message: MessageWithUser) => void;
+  onPin: (messageId: string) => void;
+  isPinned: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -82,6 +81,7 @@ function MessageItem({
           <span className="text-xs text-zinc-400" suppressHydrationWarning>
             {time}
           </span>
+          {isPinned && <Pin className="size-3 text-zinc-400 fill-zinc-400" />}
         </div>
 
         {message.replyTo && (
@@ -218,6 +218,13 @@ function MessageItem({
             <Reply className="size-3.5" />
           </button>
 
+          <button
+            className={`p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors ${isPinned ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"}`}
+            onClick={() => onPin(message.id)}
+          >
+            <Pin className={`size-3.5 ${isPinned ? "fill-current" : ""}`} />
+          </button>
+
           {message.userId === currentUserId && (
             <>
               {message.content && (
@@ -279,10 +286,18 @@ function EmptyState({ channelName }: { channelName: string }) {
   );
 }
 
+type Props = {
+  channelId: string;
+  channelName: string;
+  initialMessages: MessageWithUser[];
+  initialPinnedIds: string[];
+};
+
 export function ChannelView({
   channelId,
   channelName,
   initialMessages,
+  initialPinnedIds,
 }: Props) {
   const { markChannelRead } = useUnread();
 
@@ -292,6 +307,9 @@ export function ChannelView({
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageWithUser | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(
+    new Set(initialPinnedIds),
+  );
 
   const { data: session } = authClient.useSession();
 
@@ -389,6 +407,32 @@ export function ChannelView({
     [],
   );
 
+  const handlePinUpdated = useCallback(
+    ({ messageId }: { messageId: string }) => {
+      setPinnedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(messageId)) {
+          next.delete(messageId);
+        } else {
+          next.add(messageId);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleTogglePin = useCallback(async (messageId: string) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+
+    await fetch(`/api/messages/${messageId}/pin`, { method: "POST" });
+  }, []);
+
   useChannelSSE<MessageWithUser>(
     channelId,
     handleNewMessage,
@@ -396,6 +440,7 @@ export function ChannelView({
     handleMessageUpdated,
     handleMessageDeleted,
     handleReactionUpdated,
+    handlePinUpdated,
   );
 
   useEffect(() => {
@@ -586,6 +631,8 @@ export function ChannelView({
                 onDelete={handleDeleteMessage}
                 onReaction={handleToggleReaction}
                 onReply={handleReply}
+                onPin={handleTogglePin}
+                isPinned={pinnedIds.has(msg.id)}
               />
             ))}
             <div ref={bottomRef} />
