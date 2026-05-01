@@ -119,13 +119,13 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
           return prev.map((d) => (d.id === clientId ? message : d));
         }
 
-        if (prev.some((d) => d.id === clientId)) return prev;
+        if (prev.some((d) => d.id === message.id)) return prev;
         return [...prev, message];
       });
 
       markConversationRead(conversationId);
     },
-    [],
+    [markConversationRead, conversationId],
   );
 
   const handleTyping = useCallback(
@@ -217,7 +217,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === payload.messageId
-            ? { ...m, messageReactions: payload.reactions }
+            ? { ...m, directMessageReactions: payload.reactions }
             : m,
         ),
       );

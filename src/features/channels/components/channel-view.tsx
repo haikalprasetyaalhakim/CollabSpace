@@ -332,7 +332,7 @@ export function ChannelView({
       });
       markChannelRead(channelId);
     },
-    [],
+    [markChannelRead, channelId],
   );
 
   const handleMessageUpdated = useCallback((message: MessageWithUser) => {
