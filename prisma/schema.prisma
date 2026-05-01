@@ -30,11 +30,13 @@ model User {
   channelMembers ChannelMember[]
   messages       Message[]
 
-  conversationsAsOne Conversation[]     @relation("ConversationMemberOne")
-  conversationsAsTwo Conversation[]     @relation("ConversationMemberTwo")
-  directMessages     DirectMessage[]
-  channelReads       ChannelRead[]
-  conversationReads  ConversationRead[]
+  conversationsAsOne     Conversation[]          @relation("ConversationMemberOne")
+  conversationsAsTwo     Conversation[]          @relation("ConversationMemberTwo")
+  directMessages         DirectMessage[]
+  channelReads           ChannelRead[]
+  conversationReads      ConversationRead[]
+  messageReactions       MessageReaction[]
+  directMessageReactions DirectMessageReaction[]
 
   @@unique([email])
   @@map("user")
@@ -110,14 +112,15 @@ model ChannelMember {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  content   String?
-  images    String[] @default([])
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channelId String?
-  channel   Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  id               String            @id @default(cuid())
+  content          String?
+  images           String[]          @default([])
+  createdAt        DateTime          @default(now())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId        String?
+  channel          Channel?          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  messageReactions MessageReaction[]
 }
 
 model Conversation {
@@ -145,8 +148,9 @@ model DirectMessage {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId         String
+  conversation           Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  directMessageReactions DirectMessageReaction[]
 }
 
 model ChannelRead {
@@ -169,4 +173,28 @@ model ConversationRead {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@id([userId, conversationId])
+}
+
+model MessageReaction {
+  id        String @id @default(cuid())
+  emoji     String
+  userId    String
+  messageId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+}
+
+model DirectMessageReaction {
+  id              String @id @default(cuid())
+  emoji           String
+  userId          String
+  directMessageId String
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  directMessage DirectMessage @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, directMessageId, emoji])
 }

@@ -7,6 +7,13 @@ export async function getChannelMessages(channelId: string) {
       user: {
         select: { id: true, name: true, image: true },
       },
+      messageReactions: {
+        select: {
+          id: true,
+          emoji: true,
+          userId: true,
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
     take: 50,

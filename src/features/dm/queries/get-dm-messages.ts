@@ -7,6 +7,13 @@ export async function getDmMessages(conversationId: string) {
       user: {
         select: { id: true, name: true, image: true },
       },
+      directMessageReactions: {
+        select: {
+          id: true,
+          emoji: true,
+          userId: true,
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
     take: 50,

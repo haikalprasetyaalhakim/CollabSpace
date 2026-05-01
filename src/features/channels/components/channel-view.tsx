@@ -13,13 +13,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import { ALLOWED_EMOJIS, MAX_IMAGE_PER_MESSAGE } from "@/constants";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { Hash, ImageIcon, Pencil, Send, Trash2 } from "lucide-react";
+import { Hash, ImageIcon, Pencil, Send, SmilePlus, Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
@@ -36,13 +36,17 @@ function MessageItem({
   currentUserId,
   onEdit,
   onDelete,
+  onReaction,
 }: {
   message: MessageWithUser;
   currentUserId: string;
   onEdit: (id: string, content: string) => void;
   onDelete: (id: string) => void;
+  onReaction: (messageId: string, emoji: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   const time = new Date(message.createdAt).toLocaleTimeString([], {
@@ -123,43 +127,105 @@ function MessageItem({
         )}
 
         {message.images.length > 0 && <ImageGrid images={message.images} />}
+
+        {message.messageReactions.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {Object.entries(
+              message.messageReactions.reduce(
+                (acc, r) => {
+                  if (!acc[r.emoji])
+                    acc[r.emoji] = { count: 0, hasReacted: false };
+                  acc[r.emoji].count++;
+                  if (r.userId === currentUserId)
+                    acc[r.emoji].hasReacted = true;
+                  return acc;
+                },
+                {} as Record<string, { count: number; hasReacted: boolean }>,
+              ),
+            ).map(([emoji, { count, hasReacted }]) => (
+              <button
+                key={emoji}
+                onClick={() => onReaction(message.id, emoji)}
+                className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  hasReacted
+                    ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
+                    : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                }`}
+              >
+                <span>{emoji}</span>
+                <span className="text-zinc-600 dark:text-zinc-400">
+                  {count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {message.userId === currentUserId && !isEditing && (
+      {!isEditing && (
         <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 transition-all flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-md">
-          {message.content && (
+          <div className="relative">
             <button
-              onClick={() => setIsEditing(true)}
               className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              onClick={() => setShowEmojiPicker((v) => !v)}
             >
-              <Pencil className="size-3.5" />
+              <SmilePlus className="size-3.5" />
             </button>
-          )}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors">
-                <Trash2 className="size-3.5" />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete message?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. The message will be permanently
-                  deleted.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => onDelete(message.id)}
-                  className="bg-red-500 hover:bg-red-600 text-white"
+            {showEmojiPicker && (
+              <div className="absolute right-0 top-full mt-1 flex gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 shadow-xl z-10">
+                {ALLOWED_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      onReaction(message.id, emoji);
+                      setShowEmojiPicker(false);
+                    }}
+                    className="text-lg hover:scale-125 transition-transform p-0.5"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {message.userId === currentUserId && (
+            <>
+              {message.content && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                 >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  <Pencil className="size-3.5" />
+                </button>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors">
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete message?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. The message will be
+                      permanently deleted.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => onDelete(message.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -277,12 +343,29 @@ export function ChannelView({
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }, []);
 
+  const handleReactionUpdated = useCallback(
+    (payload: {
+      messageId: string;
+      reactions: Array<{ id: string; emoji: string; userId: string }>;
+    }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === payload.messageId
+            ? { ...m, messageReactions: payload.reactions }
+            : m,
+        ),
+      );
+    },
+    [],
+  );
+
   useChannelSSE<MessageWithUser>(
     channelId,
     handleNewMessage,
     undefined,
     handleMessageUpdated,
     handleMessageDeleted,
+    handleReactionUpdated,
   );
 
   useEffect(() => {
@@ -309,6 +392,7 @@ export function ChannelView({
         content: input.trim(),
         images: pendingImages.map((img) => img.remoteUrl ?? img.localUrl),
         channelId,
+        messageReactions: [],
         user: {
           id: session?.user.id!,
           name: session?.user.name!,
@@ -421,6 +505,33 @@ export function ChannelView({
     }
   }, []);
 
+  const handleToggleReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          const existing = m.messageReactions.find(
+            (r) => r.userId === session?.user.id && r.emoji === emoji,
+          );
+          const newReactions = existing
+            ? m.messageReactions.filter((r) => r.id !== existing.id)
+            : [
+                ...m.messageReactions,
+                { id: crypto.randomUUID(), emoji, userId: session?.user.id! },
+              ];
+          return { ...m, messageReactions: newReactions };
+        }),
+      );
+
+      await fetch(`/api/messages/${messageId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      });
+    },
+    [session?.user.id],
+  );
+
   return (
     <div className="flex flex-col h-[calc(100svh-49px)]">
       <div className="flex-1 overflow-y-auto py-4">
@@ -435,6 +546,7 @@ export function ChannelView({
                 currentUserId={session?.user.id!}
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
+                onReaction={handleToggleReaction}
               />
             ))}
             <div ref={bottomRef} />
