@@ -117,10 +117,13 @@ model Message {
   images           String[]          @default([])
   createdAt        DateTime          @default(now())
   userId           String
+  replyToId        String?
+  replyTo          Message?          @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   channelId        String?
   channel          Channel?          @relation(fields: [channelId], references: [id], onDelete: Cascade)
   messageReactions MessageReaction[]
+  replis           Message[]         @relation("MessageReplies")
 }
 
 model Conversation {
@@ -148,9 +151,14 @@ model DirectMessage {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  conversationId         String
-  conversation           Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  replyToId String?
+  replyTo   DirectMessage? @relation("DmReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+
   directMessageReactions DirectMessageReaction[]
+  replies                DirectMessage[]         @relation("DmReplies")
 }
 
 model ChannelRead {

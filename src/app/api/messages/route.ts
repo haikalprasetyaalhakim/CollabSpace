@@ -13,6 +13,7 @@ const SendMessageSchema = z
     content: z.string().max(2000, "Message too long").optional(),
     images: z.array(z.url()).max(4).optional(),
     clientId: z.string().optional(),
+    replyToId: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -62,9 +63,18 @@ export async function POST(request: NextRequest) {
       content: content?.trim() ?? null,
       userId: session.user.id,
       images: images ?? [],
+      replyToId: parsed.data.replyToId ?? null,
     },
     include: {
       user: { select: { id: true, name: true, image: true } },
+      replyTo: {
+        select: {
+          id: true,
+          content: true,
+          user: { select: { id: true, name: true } },
+        },
+      },
+      messageReactions: { select: { id: true, emoji: true, userId: true } },
     },
   });
 

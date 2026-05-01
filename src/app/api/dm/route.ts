@@ -13,6 +13,7 @@ const SendDmSchema = z
     content: z.string().max(2000, "Message too long").optional(),
     images: z.array(z.url()).max(4).optional(),
     clientId: z.string().optional(),
+    replyToId: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -67,9 +68,20 @@ export async function POST(request: NextRequest) {
       conversationId,
       content: content?.trim() ?? null,
       images: images ?? [],
+      replyToId: parsed.data.replyToId ?? null,
     },
     include: {
       user: { select: { id: true, name: true, image: true } },
+      replyTo: {
+        select: {
+          id: true,
+          content: true,
+          user: { select: { id: true, name: true } },
+        },
+      },
+      directMessageReactions: {
+        select: { id: true, emoji: true, userId: true },
+      },
     },
   });
 

@@ -19,7 +19,16 @@ import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { Hash, ImageIcon, Pencil, Send, SmilePlus, Trash2 } from "lucide-react";
+import {
+  Hash,
+  ImageIcon,
+  Pencil,
+  Reply,
+  Send,
+  SmilePlus,
+  Trash2,
+  X,
+} from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
@@ -37,12 +46,14 @@ function MessageItem({
   onEdit,
   onDelete,
   onReaction,
+  onReply,
 }: {
   message: MessageWithUser;
   currentUserId: string;
   onEdit: (id: string, content: string) => void;
   onDelete: (id: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
+  onReply: (message: MessageWithUser) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -72,6 +83,17 @@ function MessageItem({
             {time}
           </span>
         </div>
+
+        {message.replyTo && (
+          <div className="flex items-center gap-1.5 border-l-2 border-zinc-300 dark:border-zinc-600 pl-2 py-0.5 mb-0.5 rounded-sm">
+            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0">
+              {message.replyTo.user.name}
+            </span>
+            <span className="text-xs text-zinc-400 truncate">
+              {message.replyTo.content ?? "📷 Image"}
+            </span>
+          </div>
+        )}
 
         {isEditing ? (
           <div className="flex flex-col gap-2 mt-1">
@@ -189,6 +211,13 @@ function MessageItem({
             )}
           </div>
 
+          <button
+            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            onClick={() => onReply(message)}
+          >
+            <Reply className="size-3.5" />
+          </button>
+
           {message.userId === currentUserId && (
             <>
               {message.content && (
@@ -262,6 +291,7 @@ export function ChannelView({
   const [isSending, setIsSending] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<MessageWithUser | null>(null);
 
   const { data: session } = authClient.useSession();
 
@@ -393,6 +423,8 @@ export function ChannelView({
         images: pendingImages.map((img) => img.remoteUrl ?? img.localUrl),
         channelId,
         messageReactions: [],
+        replyToId: replyingTo?.id ?? null,
+        replyTo: replyingTo ?? null,
         user: {
           id: session?.user.id!,
           name: session?.user.name!,
@@ -404,6 +436,7 @@ export function ChannelView({
     ]);
     setInput("");
     setPendingImages([]);
+    setReplyingTo(null);
 
     try {
       const response = await fetch("/api/messages", {
@@ -417,6 +450,7 @@ export function ChannelView({
               ? pendingImages.map((img) => img.remoteUrl!)
               : undefined,
           clientId: tempId,
+          replyToId: replyingTo?.id,
         }),
       });
 
@@ -532,6 +566,10 @@ export function ChannelView({
     [session?.user.id],
   );
 
+  const handleReply = useCallback((message: MessageWithUser) => {
+    setReplyingTo(message);
+  }, []);
+
   return (
     <div className="flex flex-col h-[calc(100svh-49px)]">
       <div className="flex-1 overflow-y-auto py-4">
@@ -547,6 +585,7 @@ export function ChannelView({
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 onReaction={handleToggleReaction}
+                onReply={handleReply}
               />
             ))}
             <div ref={bottomRef} />
@@ -586,6 +625,24 @@ export function ChannelView({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {replyingTo && (
+        <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <Reply className="size-3 text-zinc-400 shrink-0" />
+            <span className="text-zinc-500">Replying to</span>
+            <span className="text-zinc-400 truncate">
+              {replyingTo.content ?? "📷 Image"}
+            </span>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            className="shrink-0 ml-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            <X className="size-3.5" />
+          </button>
         </div>
       )}
 

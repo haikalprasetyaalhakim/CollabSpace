@@ -14,6 +14,13 @@ export async function getDmMessages(conversationId: string) {
           userId: true,
         },
       },
+      replyTo: {
+        select: {
+          id: true,
+          content: true,
+          user: { select: { id: true, name: true } },
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
     take: 50,

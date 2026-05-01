@@ -20,7 +20,7 @@ import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { ImageIcon, Pencil, Send, SmilePlus, Trash2 } from "lucide-react";
+import { ImageIcon, Pencil, Reply, Send, SmilePlus, Trash2, X } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DmMessageWithUser } from "../queries/get-dm-messages";
@@ -49,6 +49,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<DmMessageWithUser | null>(null);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,6 +183,10 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
     }
   }, []);
 
+  const handleReply = useCallback((message: DmMessageWithUser) => {
+    setReplyingTo(message);
+  }, []);
+
   const handleToggleReaction = useCallback(
     async (messageId: string, emoji: string) => {
       setMessages((prev) =>
@@ -254,6 +259,8 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         userId: session?.user.id!,
         createdAt: new Date(),
         directMessageReactions: [],
+        replyToId: replyingTo?.id ?? null,
+        replyTo: replyingTo ?? null,
         images: pendingImages.map((img) => img.remoteUrl ?? img.localUrl) ?? [],
         user: {
           id: session?.user.id!,
@@ -265,6 +272,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
     setInput("");
     pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
     setPendingImages([]);
+    setReplyingTo(null);
 
     try {
       const response = await fetch("/api/dm", {
@@ -278,6 +286,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
               ? pendingImages.map((img) => img.remoteUrl!)
               : undefined,
           clientId: tempId,
+          replyToId: replyingTo?.id,
         }),
       });
 
@@ -387,6 +396,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 onReaction={handleToggleReaction}
+                onReply={handleReply}
               />
             ))}
             <div ref={bottomRef} />
@@ -448,6 +458,27 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
         </div>
       )}
 
+      {replyingTo && (
+        <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <Reply className="size-3 text-zinc-400 shrink-0" />
+            <span className="text-zinc-500">Replying to</span>
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300 shrink-0">
+              {replyingTo.user.name}
+            </span>
+            <span className="text-zinc-400 truncate">
+              {replyingTo.content ?? "📷 Image"}
+            </span>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            className="shrink-0 ml-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
         <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
           <input
@@ -502,12 +533,14 @@ function MessageItem({
   onEdit,
   onDelete,
   onReaction,
+  onReply,
 }: {
   message: DmMessageWithUser;
   currentUserId: string;
   onEdit: (id: string, content: string) => void;
   onDelete: (id: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
+  onReply: (message: DmMessageWithUser) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -536,6 +569,17 @@ function MessageItem({
             {time}
           </span>
         </div>
+
+        {message.replyTo && (
+          <div className="flex items-center gap-1.5 border-l-2 border-zinc-300 dark:border-zinc-600 pl-2 py-0.5 mb-0.5 rounded-sm">
+            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0">
+              {message.replyTo.user.name}
+            </span>
+            <span className="text-xs text-zinc-400 truncate">
+              {message.replyTo.content ?? "📷 Image"}
+            </span>
+          </div>
+        )}
 
         {isEditing ? (
           <div className="flex flex-col gap-2 mt-1">
@@ -653,6 +697,13 @@ function MessageItem({
               </div>
             )}
           </div>
+
+          <button
+            onClick={() => onReply(message)}
+            className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            <Reply className="size-3.5" />
+          </button>
 
           {message.userId === currentUserId && (
             <>
