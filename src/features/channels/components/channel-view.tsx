@@ -310,6 +310,16 @@ export function ChannelView({
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(
     new Set(initialPinnedIds),
   );
+  const [showPinnedPanel, setShowPinnedPanel] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState<
+    Array<{
+      id: string;
+      content: string;
+      images: string[];
+      createdAt: Date;
+      user: { id: string; name: string; image: string | null };
+    }>
+  >([]);
 
   const { data: session } = authClient.useSession();
 
@@ -323,6 +333,14 @@ export function ChannelView({
       deleteUploadedFiles(pendingImages);
     };
   }, [pendingImages]);
+
+  useEffect(() => {
+    if (!showPinnedPanel) return;
+
+    fetch(`/api/channels/${channelId}/pinned`)
+      .then((res) => res.json())
+      .then((data) => setPinnedMessages(data));
+  }, [showPinnedPanel, channelId]);
 
   const { startUpload } = useUploadThing("messageImageUploader", {
     onUploadBegin: () => setIsUploadingImages(true),
@@ -408,14 +426,11 @@ export function ChannelView({
   );
 
   const handlePinUpdated = useCallback(
-    ({ messageId }: { messageId: string }) => {
+    ({ messageId, isPinned }: { messageId: string; isPinned: boolean }) => {
       setPinnedIds((prev) => {
         const next = new Set(prev);
-        if (next.has(messageId)) {
-          next.delete(messageId);
-        } else {
-          next.add(messageId);
-        }
+        if (isPinned) next.add(messageId);
+        else next.delete(messageId);
         return next;
       });
     },
@@ -616,126 +631,187 @@ export function ChannelView({
   }, []);
 
   return (
-    <div className="flex flex-col h-[calc(100svh-49px)]">
-      <div className="flex-1 overflow-y-auto py-4">
-        {messages.length === 0 ? (
-          <EmptyState channelName={channelName} />
-        ) : (
-          <div className="space-y-1">
-            {messages.map((msg) => (
-              <MessageItem
-                key={msg.id}
-                message={msg}
-                currentUserId={session?.user.id!}
-                onEdit={handleEditMessage}
-                onDelete={handleDeleteMessage}
-                onReaction={handleToggleReaction}
-                onReply={handleReply}
-                onPin={handleTogglePin}
-                isPinned={pinnedIds.has(msg.id)}
-              />
+    <div className="flex h-[calc(100svh-49px)]">
+      <div className="flex flex-col flex-1 min-w-0">
+        {pinnedIds.size > 0 && (
+          <button
+            onClick={() => setShowPinnedPanel((v) => !v)}
+            className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-xs text-zinc-500 shrink-0"
+          >
+            <Pin className="size-3 fill-zinc-400 text-zinc-400" />
+            <span>
+              {pinnedIds.size} pinned message{pinnedIds.size > 1 ? "s" : ""}
+            </span>
+          </button>
+        )}
+        <div className="flex-1 overflow-y-auto py-4">
+          {messages.length === 0 ? (
+            <EmptyState channelName={channelName} />
+          ) : (
+            <div className="space-y-1">
+              {messages.map((msg) => (
+                <MessageItem
+                  key={msg.id}
+                  message={msg}
+                  currentUserId={session?.user.id!}
+                  onEdit={handleEditMessage}
+                  onDelete={handleDeleteMessage}
+                  onReaction={handleToggleReaction}
+                  onReply={handleReply}
+                  onPin={handleTogglePin}
+                  isPinned={pinnedIds.has(msg.id)}
+                />
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+
+        {pendingImages.length > 0 && (
+          <div className="flex gap-2 flex-wrap px-4 pb-2">
+            {pendingImages.map((img, i) => (
+              <div key={img.localUrl} className="relative group">
+                <img
+                  src={img.localUrl}
+                  alt=""
+                  className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${img.remoteUrl ? "opacity-100" : "opacity-60"}`}
+                />
+                {!img.remoteUrl && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                    <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                {img.remoteUrl && (
+                  <button
+                    onClick={() => {
+                      URL.revokeObjectURL(img.localUrl);
+                      if (img.key) {
+                        deleteUploadedFiles([img]);
+                      }
+                      setPendingImages((prev) =>
+                        prev.filter((_, idx) => idx !== i),
+                      );
+                    }}
+                    className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             ))}
-            <div ref={bottomRef} />
           </div>
         )}
-      </div>
 
-      {pendingImages.length > 0 && (
-        <div className="flex gap-2 flex-wrap px-4 pb-2">
-          {pendingImages.map((img, i) => (
-            <div key={img.localUrl} className="relative group">
-              <img
-                src={img.localUrl}
-                alt=""
-                className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${img.remoteUrl ? "opacity-100" : "opacity-60"}`}
-              />
-              {!img.remoteUrl && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
-                  <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-              {img.remoteUrl && (
-                <button
-                  onClick={() => {
-                    URL.revokeObjectURL(img.localUrl);
-                    if (img.key) {
-                      deleteUploadedFiles([img]);
-                    }
-                    setPendingImages((prev) =>
-                      prev.filter((_, idx) => idx !== i),
-                    );
-                  }}
-                  className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  ×
-                </button>
-              )}
+        {replyingTo && (
+          <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <Reply className="size-3 text-zinc-400 shrink-0" />
+              <span className="text-zinc-500">Replying to</span>
+              <span className="text-zinc-400 truncate">
+                {replyingTo.content ?? "📷 Image"}
+              </span>
             </div>
-          ))}
-        </div>
-      )}
-
-      {replyingTo && (
-        <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 text-xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <Reply className="size-3 text-zinc-400 shrink-0" />
-            <span className="text-zinc-500">Replying to</span>
-            <span className="text-zinc-400 truncate">
-              {replyingTo.content ?? "📷 Image"}
-            </span>
+            <button
+              onClick={() => setReplyingTo(null)}
+              className="shrink-0 ml-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
-          <button
-            onClick={() => setReplyingTo(null)}
-            className="shrink-0 ml-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      )}
+        )}
 
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/png, image/jpeg, image/webp"
-            multiple
-            className="hidden"
-            onChange={handleImageSelect}
-          />
-          <button
-            type="button"
-            className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={
-              pendingImages.length >= MAX_IMAGE_PER_MESSAGE || isUploadingImages
-            }
-          >
-            <ImageIcon className="size-4" />
-          </button>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            rows={1}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${channelName}`}
-            disabled={isSending}
-            className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
-            style={{ fieldSizing: "content" }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={
-              (!input.trim() && pendingImages.length === 0) ||
-              !pendingImages.every((img) => img.remoteUrl !== null) ||
-              isUploadingImages
-            }
-            className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
-          >
-            <Send className="size-3.5" />
-          </button>
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png, image/jpeg, image/webp"
+              multiple
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            <button
+              type="button"
+              className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={
+                pendingImages.length >= MAX_IMAGE_PER_MESSAGE ||
+                isUploadingImages
+              }
+            >
+              <ImageIcon className="size-4" />
+            </button>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              rows={1}
+              onKeyDown={handleKeyDown}
+              placeholder={`Message ${channelName}`}
+              disabled={isSending}
+              className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
+              style={{ fieldSizing: "content" }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={
+                (!input.trim() && pendingImages.length === 0) ||
+                !pendingImages.every((img) => img.remoteUrl !== null) ||
+                isUploadingImages
+              }
+              className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
+            >
+              <Send className="size-3.5" />
+            </button>
+          </div>
         </div>
       </div>
+      {showPinnedPanel && (
+        <div className="w-72 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              <Pin className="size-4 text-zinc-500" />
+              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                Pinned Messages
+              </span>
+            </div>
+            <button
+              onClick={() => setShowPinnedPanel(false)}
+              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {pinnedMessages.length === 0 ? (
+              <p className="text-xs text-zinc-400 text-center py-8">
+                Loading...
+              </p>
+            ) : (
+              pinnedMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700"
+                >
+                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    {msg.user.name}
+                  </span>
+                  {msg.content && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-all">
+                      {msg.content}
+                    </p>
+                  )}
+                  {msg.images.length > 0 && (
+                    <span className="text-xs text-zinc-400">
+                      📷 {msg.images.length} image(s)
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

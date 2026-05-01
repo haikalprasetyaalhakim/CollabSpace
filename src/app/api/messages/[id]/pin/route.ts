@@ -42,6 +42,7 @@ export async function POST(
   broadcastToChannel(channelId!, {
     type: "pin-updated",
     messageId,
+    isPinned: !existing,
   });
 
   return Response.json({ success: true });

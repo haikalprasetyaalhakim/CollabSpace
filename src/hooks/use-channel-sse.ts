@@ -15,6 +15,7 @@ type ReactionUpdatePayload = {
 
 type PinUpdatePayload = {
   messageId: string;
+  isPinned: boolean;
 };
 
 export function useChannelSSE<T>(
@@ -50,7 +51,10 @@ export function useChannelSSE<T>(
           reactions: data.reactions as ReactionUpdatePayload["reactions"],
         });
       } else if (data.type === "pin-updated" && onPinUpdated) {
-        onPinUpdated({ messageId: data.messageId as string });
+        onPinUpdated({
+          messageId: data.messageId as string,
+          isPinned: data.isPinned,
+        });
       }
     };
 
