@@ -11,5 +11,9 @@ export async function serverCompReqAuth() {
     return redirect("/sign-in");
   }
 
+  if (!session.user.username) {
+    return redirect("/onboarding");
+  }
+
   return session;
 }
