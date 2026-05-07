@@ -48,7 +48,13 @@ export default async function Page({ params }: Props) {
         where: { channelId },
         include: {
           user: {
-            select: { id: true, name: true, image: true, status: true },
+            select: {
+              id: true,
+              name: true,
+              image: true,
+              status: true,
+              username: true,
+            },
           },
         },
         orderBy: { joinedAt: "asc" },
@@ -95,6 +101,7 @@ export default async function Page({ params }: Props) {
             channelName={channel.name}
             initialMessages={initialMessages}
             initialPinnedIds={initialPinnedIds}
+            members={members.map((m) => m.user)}
           />
         </div>
         <ChannelMemberPanel

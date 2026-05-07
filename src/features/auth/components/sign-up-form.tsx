@@ -24,6 +24,7 @@ export default function SignUpForm() {
     resolver: zodResolver(signUpSchema),
     defaultValues: {
       name: "",
+      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -36,6 +37,7 @@ export default function SignUpForm() {
         email: data.email,
         password: data.password,
         name: data.name,
+        username: data.username,
       },
       {
         onSuccess: () => {
@@ -70,6 +72,33 @@ export default function SignUpForm() {
                   {...field}
                   aria-invalid={fieldState.invalid}
                   placeholder="John Doe"
+                  autoComplete="off"
+                  aria-required
+                />
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
+              </Field>
+            )}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Controller
+            name="username"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel
+                  htmlFor="username"
+                  className="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  Username
+                </FieldLabel>
+                <Input
+                  {...field}
+                  aria-invalid={fieldState.invalid}
+                  placeholder="e.g. john_doe"
                   autoComplete="off"
                   aria-required
                 />

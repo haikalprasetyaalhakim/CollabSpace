@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       replyToId: parsed.data.replyToId ?? null,
     },
     include: {
-      user: { select: { id: true, name: true, image: true } },
+      user: { select: { id: true, name: true, image: true, username: true } },
       replyTo: {
         select: {
           id: true,

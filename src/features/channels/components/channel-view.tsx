@@ -35,6 +35,19 @@ import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
 import { useUnread } from "@/hooks/use-unread";
 
+function renderContent(content: string) {
+  const parts = content.split(/(@\w+)/g);
+  return parts.map((part, i) =>
+    part.startsWith("@") ? (
+      <span key={i} className="text-blue-500 dark:text-blue-400 font-medium">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
+
 function MessageItem({
   message,
   currentUserId,
@@ -143,7 +156,7 @@ function MessageItem({
         ) : (
           message.content && (
             <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
-              {message.content}
+              {renderContent(message.content)}
             </p>
           )
         )}
@@ -291,6 +304,12 @@ type Props = {
   channelName: string;
   initialMessages: MessageWithUser[];
   initialPinnedIds: string[];
+  members: {
+    id: string;
+    name: string;
+    image: string | null;
+    username: string | null;
+  }[];
 };
 
 export function ChannelView({
@@ -298,6 +317,7 @@ export function ChannelView({
   channelName,
   initialMessages,
   initialPinnedIds,
+  members,
 }: Props) {
   const { markChannelRead } = useUnread();
 
@@ -307,6 +327,7 @@ export function ChannelView({
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageWithUser | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>();
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(
     new Set(initialPinnedIds),
   );
@@ -326,6 +347,7 @@ export function ChannelView({
   const bottomRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const revokeAllRef = useRef<() => void>(() => {});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     revokeAllRef.current = () => {
@@ -489,6 +511,7 @@ export function ChannelView({
           id: session?.user.id!,
           name: session?.user.name!,
           image: session?.user.image ?? null,
+          username: session?.user.username ?? null,
         },
         createdAt: new Date(),
         userId: session?.user.id!,
@@ -630,6 +653,43 @@ export function ChannelView({
     setReplyingTo(message);
   }, []);
 
+  const handleMentionSelect = useCallback(
+    (member: { id: string; name: string; username: string | null }) => {
+      const cursor = textareaRef.current?.selectionStart ?? input.length;
+      const textBeforeCursor = input.slice(0, cursor);
+      const match = textBeforeCursor.match(/@(\w*)$/);
+      if (!match) return;
+
+      const atStart = cursor - match[0].length;
+      const newText =
+        input.slice(0, atStart) + `@${member.username} ` + input.slice(cursor);
+
+      setInput(newText);
+      setMentionQuery(null);
+
+      setTimeout(() => {
+        textareaRef.current?.focus();
+        const newCursor =
+          atStart +
+          (member.username?.length ?? 0) +
+          2 +
+          input.slice(cursor).length;
+        textareaRef.current?.setSelectionRange(newCursor, newCursor);
+      }, 0);
+    },
+    [input],
+  );
+
+  const filteredMembers = mentionQuery
+    ? members
+        .filter(
+          (m) =>
+            m.username &&
+            m.username.toLowerCase().includes(mentionQuery.toLowerCase()),
+        )
+        .slice(0, 5)
+    : [];
+
   return (
     <div className="flex h-[calc(100svh-49px)]">
       <div className="flex flex-col flex-1 min-w-0">
@@ -720,7 +780,22 @@ export function ChannelView({
           </div>
         )}
 
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 relative">
+          {mentionQuery && filteredMembers.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 mx-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-20">
+              {filteredMembers.map((member) => (
+                <button
+                  key={member.id}
+                  onClick={() => handleMentionSelect(member)}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm text-left"
+                >
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                    {member.username}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
             <input
               ref={imageInputRef}
@@ -743,7 +818,21 @@ export function ChannelView({
             </button>
             <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              ref={textareaRef}
+              onChange={(e) => {
+                const val = e.target.value;
+                setInput(val);
+
+                const cursor = e.target.selectionStart ?? val.length;
+                const textBeforeCursor = val.slice(0, cursor);
+                const match = textBeforeCursor.match(/@(\w*)$/);
+
+                if (match) {
+                  setMentionQuery(match[1]);
+                } else {
+                  setMentionQuery(null);
+                }
+              }}
               rows={1}
               onKeyDown={handleKeyDown}
               placeholder={`Message ${channelName}`}

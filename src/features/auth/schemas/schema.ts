@@ -3,6 +3,11 @@ import z from "zod";
 export const signUpSchema = z
   .object({
     name: z.string().min(3, "Name must be at least 3 characters"),
+    username: z
+      .string()
+      .min(3, "Username must be at least 3 characters")
+      .max(20, "Username must be most 20 characters")
+      .regex(/^\w+$/, "Only letters, numbers, and underscores allowed"),
     email: z.email(),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z

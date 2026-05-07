@@ -23,6 +23,7 @@ model User {
   imageKey      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  username      String?
   sessions      Session[]
   accounts      Account[]
 
@@ -40,6 +41,7 @@ model User {
   pinnedMessages         PinnedMessage[]         @relation("PinnedByUser")
 
   @@unique([email])
+  @@unique([username])
   @@map("user")
 }
 

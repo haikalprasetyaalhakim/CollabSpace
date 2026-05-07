@@ -5,7 +5,7 @@ export async function getChannelMessages(channelId: string) {
     where: { channelId },
     include: {
       user: {
-        select: { id: true, name: true, image: true },
+        select: { id: true, name: true, image: true, username: true },
       },
       messageReactions: {
         select: {
