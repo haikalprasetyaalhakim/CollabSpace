@@ -35,6 +35,33 @@ import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
 import { useUnread } from "@/hooks/use-unread";
 
+function formatDateLabel(date: Date): string {
+  const now = new Date();
+  const d = new Date(date);
+
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  if (isToday) return "Today";
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterDay =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterDay) return "Yesterday";
+
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);
   return parts.map((part, i) =>
@@ -324,8 +351,6 @@ export function ChannelView({
   members,
   highlightMessageId,
 }: Props) {
-  const { markChannelRead } = useUnread();
-
   const [messages, setMessages] = useState<MessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -346,6 +371,7 @@ export function ChannelView({
       user: { id: string; name: string; image: string | null };
     }>
   >([]);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const { data: session } = authClient.useSession();
 
@@ -353,20 +379,26 @@ export function ChannelView({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const revokeAllRef = useRef<() => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(!highlightMessageId);
 
-  const { clearChannelMentions } = useUnread();
+  const { markChannelRead, clearChannelMentions } = useUnread();
 
   useEffect(() => {
     if (!highlightMessageId) return;
-
     clearChannelMentions(channelId);
 
-    const el = document.getElementById(`message-${highlightMessageId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("message-flash");
-      setTimeout(() => el.classList.remove("message-flash"), 1800);
-    }
+    const tryScroll = () => {
+      const el = document.getElementById(`message-${highlightMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("message-flash");
+        setTimeout(() => el.classList.remove("message-flash"), 1800);
+      }
+    };
+
+    const raf = requestAnimationFrame(() => setTimeout(tryScroll, 100));
+    return () => cancelAnimationFrame(raf);
   }, [highlightMessageId, channelId, clearChannelMentions]);
 
   useEffect(() => {
@@ -421,8 +453,18 @@ export function ChannelView({
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    isAtBottomRef.current = atBottom;
+    setShowScrollBtn(!atBottom);
+  }, []);
 
   useEffect(() => {
     markChannelRead(channelId);
@@ -724,25 +766,60 @@ export function ChannelView({
             </span>
           </button>
         )}
-        <div className="flex-1 overflow-y-auto py-4">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto py-4"
+        >
           {messages.length === 0 ? (
             <EmptyState channelName={channelName} />
           ) : (
             <div className="space-y-1">
-              {messages.map((msg) => (
-                <MessageItem
-                  key={msg.id}
-                  message={msg}
-                  currentUserId={session?.user.id!}
-                  onEdit={handleEditMessage}
-                  onDelete={handleDeleteMessage}
-                  onReaction={handleToggleReaction}
-                  onReply={handleReply}
-                  onPin={handleTogglePin}
-                  isPinned={pinnedIds.has(msg.id)}
-                />
-              ))}
+              {messages.map((msg, index) => {
+                const prev = messages[index - 1];
+                const showDateSeparator =
+                  !prev ||
+                  new Date(msg.createdAt).toDateString() !==
+                    new Date(prev.createdAt).toDateString();
+
+                return (
+                  <React.Fragment key={msg.id}>
+                    {showDateSeparator && (
+                      <div className="flex items-center gap-3 px-4 py-2">
+                        <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                        <span className="text-xs text-zinc-400 font-medium shrink-0">
+                          {formatDateLabel(new Date(msg.createdAt))}
+                        </span>
+                        <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                      </div>
+                    )}
+                    <MessageItem
+                      key={msg.id}
+                      message={msg}
+                      currentUserId={session?.user.id!}
+                      onEdit={handleEditMessage}
+                      onDelete={handleDeleteMessage}
+                      onReaction={handleToggleReaction}
+                      onReply={handleReply}
+                      onPin={handleTogglePin}
+                      isPinned={pinnedIds.has(msg.id)}
+                    />
+                  </React.Fragment>
+                );
+              })}
               <div ref={bottomRef} />
+              {showScrollBtn && (
+                <button
+                  onClick={() => {
+                    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                    setShowScrollBtn(false);
+                  }}
+                  className="sticky bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-xs font-medium shadow-lg hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors z-10"
+                >
+                  {" "}
+                  ↓ Scroll to bottom
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -809,8 +886,17 @@ export function ChannelView({
                   onClick={() => handleMentionSelect(member)}
                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm text-left"
                 >
-                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                    {member.username}
+                  <Avatar className="size-6 shrink-0">
+                    <AvatarImage src={member.image ?? ""} />
+                    <AvatarFallback className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">
+                      {getInitials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>{" "}
+                  <span className="font-medium text-blue-500 dark:text-blue-400">
+                    @{member.username}{" "}
+                  </span>
+                  <span className="text-xs text-zinc-400 truncate">
+                    {member.name}
                   </span>
                 </button>
               ))}
