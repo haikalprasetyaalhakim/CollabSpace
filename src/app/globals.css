@@ -130,3 +130,18 @@
     scroll-padding-top: 62px;
   }
 }
+
+@keyframes message-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  30%,
+  70% {
+    background-color: rgb(59 130 246 / 0.12);
+  }
+}
+.message-flash {
+  animation: message-flash 1.8s ease-in-out;
+  border-radius: 6px;
+}

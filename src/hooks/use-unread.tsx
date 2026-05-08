@@ -15,6 +15,8 @@ type UnreadContextType = {
   conversationUnread: Record<string, number>;
   markChannelRead: (channelId: string) => void;
   markConversationRead: (conversationId: string) => void;
+  mentionedChannels: Map<string, Set<string>>;
+  clearChannelMentions: (channelId: string) => void;
 };
 
 const UnreadContext = createContext<UnreadContextType | null>(null);
@@ -23,12 +25,14 @@ type Props = {
   children: React.ReactNode;
   initialChannelUnread: Record<string, number>;
   initialConversationUnread: Record<string, number>;
+  initialMentions: { channelId: string; messageId: string }[];
 };
 
 export function UnreadProvider({
   children,
   initialChannelUnread,
   initialConversationUnread,
+  initialMentions,
 }: Props) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
@@ -36,6 +40,19 @@ export function UnreadProvider({
   const [channelUnread, setChannelUnread] = useState(initialChannelUnread);
   const [conversationUnread, setConversationUnread] = useState(
     initialConversationUnread,
+  );
+
+  const [mentionedChannels, setMentionedChannels] = useState<
+    Map<string, Set<string>>
+  >(
+    initialMentions.reduce((map, m) => {
+      const existing = map.get(m.channelId);
+      map.set(
+        m.channelId,
+        existing ? existing.add(m.messageId) : new Set([m.messageId]),
+      );
+      return map;
+    }, new Map<string, Set<string>>()),
   );
 
   const markChannelRead = useCallback((channelId: string) => {
@@ -52,6 +69,18 @@ export function UnreadProvider({
     fetch(`/api/conversations/${conversationId}/read`, {
       method: "POST",
     }).catch(() => console.error("[markConversationRead] Failed to sync"));
+  }, []);
+
+  const clearChannelMentions = useCallback((channelId: string) => {
+    setMentionedChannels((prev) => {
+      const next = new Map(prev);
+      next.delete(channelId);
+      return next;
+    });
+
+    fetch(`/api/channels/${channelId}/mentions/read`, {
+      method: "POST",
+    }).catch(() => console.error("[clearChannelMentions] Failed to sync"));
   }, []);
 
   useEffect(() => {
@@ -85,6 +114,21 @@ export function UnreadProvider({
           }));
         }
       }
+
+      if (data.type === "mention") {
+        const { channelId, messageId } = data as {
+          channelId: string;
+          messageId: string;
+        };
+        if (currentPath !== `/channels/${channelId}`) {
+          setMentionedChannels((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(channelId) ?? new Set<string>();
+            next.set(channelId, existing.add(messageId));
+            return next;
+          });
+        }
+      }
     };
 
     eventSource.onerror = () => {
@@ -101,6 +145,8 @@ export function UnreadProvider({
         conversationUnread,
         markChannelRead,
         markConversationRead,
+        mentionedChannels,
+        clearChannelMentions,
       }}
     >
       {children}

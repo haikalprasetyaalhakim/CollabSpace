@@ -78,6 +78,41 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  if (content) {
+    const mentionMatches = content.match(/@(\w+)/g);
+    if (mentionMatches) {
+      const usernames = [...new Set(mentionMatches.map((m) => m.slice(1)))];
+
+      const mentionedUsers = await prisma.user.findMany({
+        where: {
+          username: { in: usernames },
+          id: { not: session.user.id },
+        },
+        select: { id: true },
+      });
+
+      if (mentionedUsers.length > 0) {
+        await prisma.mention.createMany({
+          data: mentionedUsers.map((u) => ({
+            userId: u.id,
+            messageId: message.id,
+            channelId,
+            read: false,
+          })),
+          skipDuplicates: true,
+        });
+
+        mentionedUsers.forEach(({ id: userId }) => {
+          broadcastToUser(userId, {
+            type: "mention",
+            channelId,
+            messageId: message.id,
+          });
+        });
+      }
+    }
+  }
+
   const members = await prisma.channelMember.findMany({
     where: {
       channelId,

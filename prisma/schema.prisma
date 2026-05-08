@@ -39,6 +39,7 @@ model User {
   messageReactions       MessageReaction[]
   directMessageReactions DirectMessageReaction[]
   pinnedMessages         PinnedMessage[]         @relation("PinnedByUser")
+  mentions               Mention[]
 
   @@unique([email])
   @@unique([username])
@@ -103,6 +104,7 @@ model Channel {
   messages       Message[]
   channelReads   ChannelRead[]
   pinnedMessages PinnedMessage[]
+  mentions       Mention[]
 }
 
 model ChannelMember {
@@ -129,6 +131,7 @@ model Message {
   messageReactions MessageReaction[]
   replis           Message[]         @relation("MessageReplies")
   pinnedMessages   PinnedMessage[]
+  mentions         Mention[]
 }
 
 model Conversation {
@@ -223,4 +226,20 @@ model PinnedMessage {
   user    User    @relation("PinnedByUser", fields: [pinnedBy], references: [id], onDelete: Cascade)
 
   @@id([messageId, channelId])
+}
+
+model Mention {
+  id        String   @id @default(cuid())
+  userId    String
+  messageId String
+  channelId String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@map("mention")
 }

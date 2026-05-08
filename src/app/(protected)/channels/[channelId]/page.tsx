@@ -13,6 +13,7 @@ import { notFound, redirect } from "next/navigation";
 
 type Props = {
   params: Promise<{ channelId: string }>;
+  searchParams: Promise<{ highlight?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -27,10 +28,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function Page({ params }: Props) {
+export default async function Page({ params, searchParams }: Props) {
   const session = await serverCompReqAuth();
 
   const { channelId } = await params;
+  const { highlight } = await searchParams;
 
   const [channel, initialMessages, members, membership, initialPinnedIds] =
     await Promise.all([
@@ -102,6 +104,7 @@ export default async function Page({ params }: Props) {
             initialMessages={initialMessages}
             initialPinnedIds={initialPinnedIds}
             members={members.map((m) => m.user)}
+            highlightMessageId={highlight}
           />
         </div>
         <ChannelMemberPanel

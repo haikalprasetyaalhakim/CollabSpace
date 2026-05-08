@@ -24,7 +24,7 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
 
-  const { channelUnread } = useUnread();
+  const { channelUnread, mentionedChannels } = useUnread();
 
   return (
     <>
@@ -38,32 +38,47 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
         </SidebarGroupAction>
         <SidebarGroupContent>
           <SidebarMenu>
-            {channels.map((channel) => (
-              <SidebarMenuItem key={channel.id}>
-                <SidebarMenuButton
-                  asChild
-                  tooltip={`#${channel.name}`}
-                  isActive={pathname === `/channels/${channel.id}`}
-                >
-                  <Link
-                    href={`/channels/${channel.id}`}
-                    className="flex items-center justify-between w-full gap-2"
+            {channels.map((channel) => {
+              const firstMentionId = mentionedChannels.get(channel.id)
+                ? [...mentionedChannels.get(channel.id)!][0]
+                : null;
+
+              return (
+                <SidebarMenuItem key={channel.id}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={`#${channel.name}`}
+                    isActive={pathname === `/channels/${channel.id}`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Hash className="shrink-0" />
-                      <span className="truncate">{channel.name}</span>
-                    </div>
-                    {!!channelUnread[channel.id] && (
-                      <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-[10px] font-semibold flex items-center justify-center px-1 ">
-                        {channelUnread[channel.id] > 99
-                          ? "99+"
-                          : channelUnread[channel.id]}
-                      </span>
-                    )}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+                    <Link
+                      href={
+                        firstMentionId
+                          ? `/channels/${channel.id}?highlight=${firstMentionId}`
+                          : `/channels/${channel.id}`
+                      }
+                      className="flex items-center justify-between w-full gap-2"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Hash className="shrink-0" />
+                        <span className="truncate">{channel.name}</span>
+                      </div>
+                      {!!channelUnread[channel.id] && (
+                        <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-[10px] font-semibold flex items-center justify-center px-1 ">
+                          {channelUnread[channel.id] > 99
+                            ? "99+"
+                            : channelUnread[channel.id]}
+                        </span>
+                      )}
+                      {mentionedChannels.has(channel.id) && (
+                        <span className="shrink-0 h-[18px] rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center px-1.5">
+                          @
+                        </span>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
 
             {channels.length === 0 && (
               <p className="text-xs text-zinc-400 px-2 py-1">No channels yet</p>
