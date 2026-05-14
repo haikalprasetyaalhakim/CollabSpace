@@ -12,6 +12,7 @@ export async function getChannelMessages(channelId: string) {
           id: true,
           emoji: true,
           userId: true,
+          user: { select: { name: true } },
         },
       },
       replyTo: {

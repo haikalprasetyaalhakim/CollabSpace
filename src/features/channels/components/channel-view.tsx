@@ -34,6 +34,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
 import { useUnread } from "@/hooks/use-unread";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function formatDateLabel(date: Date): string {
   const now = new Date();
@@ -199,29 +204,45 @@ function MessageItem({
               message.messageReactions.reduce(
                 (acc, r) => {
                   if (!acc[r.emoji])
-                    acc[r.emoji] = { count: 0, hasReacted: false };
+                    acc[r.emoji] = { count: 0, hasReacted: false, users: [] };
                   acc[r.emoji].count++;
                   if (r.userId === currentUserId)
                     acc[r.emoji].hasReacted = true;
+                  acc[r.emoji].users.push(r.user.name);
                   return acc;
                 },
-                {} as Record<string, { count: number; hasReacted: boolean }>,
+                {} as Record<
+                  string,
+                  { count: number; hasReacted: boolean; users: string[] }
+                >,
               ),
-            ).map(([emoji, { count, hasReacted }]) => (
-              <button
-                key={emoji}
-                onClick={() => onReaction(message.id, emoji)}
-                className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                  hasReacted
-                    ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
-                    : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                }`}
-              >
-                <span>{emoji}</span>
-                <span className="text-zinc-600 dark:text-zinc-400">
-                  {count}
-                </span>
-              </button>
+            ).map(([emoji, { count, hasReacted, users }]) => (
+              <Tooltip key={emoji}>
+                <TooltipTrigger asChild>
+                  <button
+                    key={emoji}
+                    onClick={() => onReaction(message.id, emoji)}
+                    className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                      hasReacted
+                        ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
+                        : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <span>{emoji}</span>
+                    <span className="text-zinc-600 dark:text-zinc-400">
+                      {count}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="text-xs max-w-[200px] text-center"
+                >
+                  {users.length < 3
+                    ? users.join(", ")
+                    : `${users.slice(0, 2).join(", ")} and ${users.length - 2} other${users.length - 2 > 1 ? "s" : ""}`}
+                </TooltipContent>
+              </Tooltip>
             ))}
           </div>
         )}
@@ -496,7 +517,12 @@ export function ChannelView({
   const handleReactionUpdated = useCallback(
     (payload: {
       messageId: string;
-      reactions: Array<{ id: string; emoji: string; userId: string }>;
+      reactions: Array<{
+        id: string;
+        emoji: string;
+        userId: string;
+        user: { name: string };
+      }>;
     }) => {
       setMessages((prev) =>
         prev.map((m) =>
@@ -696,7 +722,12 @@ export function ChannelView({
             ? m.messageReactions.filter((r) => r.id !== existing.id)
             : [
                 ...m.messageReactions,
-                { id: crypto.randomUUID(), emoji, userId: session?.user.id! },
+                {
+                  id: crypto.randomUUID(),
+                  emoji,
+                  userId: session?.user.id!,
+                  user: { name: session?.user.name! },
+                },
               ];
           return { ...m, messageReactions: newReactions };
         }),

@@ -49,7 +49,12 @@ export async function POST(
 
   const reactions = await prisma.messageReaction.findMany({
     where: { messageId },
-    select: { id: true, emoji: true, userId: true },
+    select: {
+      id: true,
+      emoji: true,
+      userId: true,
+      user: { select: { name: true } },
+    },
   });
 
   broadcastToChannel(message.channelId, {

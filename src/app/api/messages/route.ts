@@ -74,7 +74,14 @@ export async function POST(request: NextRequest) {
           user: { select: { id: true, name: true } },
         },
       },
-      messageReactions: { select: { id: true, emoji: true, userId: true } },
+      messageReactions: {
+        select: {
+          id: true,
+          emoji: true,
+          userId: true,
+          user: { select: { name: true } },
+        },
+      },
     },
   });
 

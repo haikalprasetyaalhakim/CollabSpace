@@ -52,7 +52,12 @@ export async function POST(
     where: {
       directMessageId,
     },
-    select: { id: true, emoji: true, userId: true },
+    select: {
+      id: true,
+      emoji: true,
+      userId: true,
+      user: { select: { name: true } },
+    },
   });
 
   broadcastToChannel(`dm-${dm.conversationId}`, {

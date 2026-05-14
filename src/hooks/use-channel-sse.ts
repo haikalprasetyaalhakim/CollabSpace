@@ -10,7 +10,12 @@ type TypingPayload = {
 
 type ReactionUpdatePayload = {
   messageId: string;
-  reactions: Array<{ id: string; emoji: string; userId: string }>;
+  reactions: Array<{
+    id: string;
+    emoji: string;
+    userId: string;
+    user: { name: string };
+  }>;
 };
 
 type PinUpdatePayload = {
