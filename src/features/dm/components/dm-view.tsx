@@ -14,18 +14,34 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ALLOWED_EMOJIS, MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import {
+  ALLOWED_EMOJIS,
+  MAX_IMAGE_PER_MESSAGE,
+  PAGINATION_LIMIT,
+} from "@/constants";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
-import { getInitials } from "@/lib/utils";
+import { formatDateLabel, getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
-import { ImageIcon, Pencil, Reply, Send, SmilePlus, Trash2, X } from "lucide-react";
+import {
+  ImageIcon,
+  Pencil,
+  Reply,
+  Send,
+  SmilePlus,
+  Trash2,
+  X,
+} from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DmMessageWithUser } from "../queries/get-dm-messages";
 import { useUnread } from "@/hooks/use-unread";
-
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type OtherUser = {
   id: string;
@@ -50,12 +66,22 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<DmMessageWithUser | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [hasMore, setHasMore] = useState(
+    initialMessages.length === PAGINATION_LIMIT,
+  );
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(
+    initialMessages[0]?.id ?? null,
+  );
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const revokeAllRef = useRef<() => void>(() => {});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
 
   const { data: session } = authClient.useSession();
 
@@ -110,8 +136,49 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   }, [markConversationRead, conversationId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    isAtBottomRef.current = atBottom;
+    setShowScrollBtn(!atBottom);
+  }, []);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!cursor || isLoadingMore) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    setIsLoadingMore(true);
+    const prevScrollHeight = container.scrollHeight;
+
+    try {
+      const res = await fetch(
+        `/api/dm/conversations/${conversationId}/messages?cursor=${cursor}`,
+      );
+      const data = (await res.json()) as {
+        messages: DmMessageWithUser[];
+        hasMore: boolean;
+      };
+
+      setMessages((prev) => [...data.messages, ...prev]);
+      setHasMore(data.hasMore);
+      setCursor(data.messages[0]?.id ?? null);
+
+      requestAnimationFrame(() => {
+        container.scrollTop += container.scrollHeight - prevScrollHeight;
+      });
+    } catch {
+      toast.error("Failed to load messages");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [cursor, isLoadingMore, conversationId]);
 
   const handleNewMessage = useCallback(
     (message: DmMessageWithUser, clientId?: string) => {
@@ -199,7 +266,12 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
             ? m.directMessageReactions.filter((r) => r.id !== existing.id)
             : [
                 ...m.directMessageReactions,
-                { id: crypto.randomUUID(), emoji, userId: session?.user.id! },
+                {
+                  id: crypto.randomUUID(),
+                  emoji,
+                  userId: session?.user.id!,
+                  user: { name: session?.user.name! },
+                },
               ];
 
           return { ...m, directMessageReactions: newReactions };
@@ -217,7 +289,12 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   const handleReactionUpdated = useCallback(
     (payload: {
       messageId: string;
-      reactions: Array<{ id: string; emoji: string; userId: string }>;
+      reactions: Array<{
+        id: string;
+        emoji: string;
+        userId: string;
+        user: { name: string };
+      }>;
     }) => {
       setMessages((prev) =>
         prev.map((m) =>
@@ -370,7 +447,11 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
 
   return (
     <div className="flex flex-col h-[calc(100svh-49px)]">
-      <div className="flex-1 overflow-y-auto py-4">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto py-4"
+      >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <Avatar className="size-16 mb-3">
@@ -388,18 +469,62 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
           </div>
         ) : (
           <div className="space-y-1 px-4">
-            {messages.map((msg) => (
-              <MessageItem
-                key={msg.id}
-                message={msg}
-                currentUserId={session?.user.id ?? ""}
-                onEdit={handleEditMessage}
-                onDelete={handleDeleteMessage}
-                onReaction={handleToggleReaction}
-                onReply={handleReply}
-              />
-            ))}
+            {hasMore && (
+              <div className="flex justify-center py-3">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
+                >
+                  {isLoadingMore && (
+                    <span className="size-3 border border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {isLoadingMore ? "Loading..." : "Load previous messages"}
+                </button>
+              </div>
+            )}
+
+            {messages.map((msg, index) => {
+              const prev = messages[index - 1];
+              const showDateSeparator =
+                !prev ||
+                new Date(msg.createdAt).toDateString() !==
+                  new Date(prev.createdAt).toDateString();
+
+              return (
+                <React.Fragment key={msg.id}>
+                  {showDateSeparator && (
+                    <div className="flex items-center gap-3 px-4 py-2">
+                      <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                      <span className="text-xs text-zinc-400 font-medium shrink-0">
+                        {formatDateLabel(new Date(msg.createdAt))}
+                      </span>
+                      <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                    </div>
+                  )}
+                  <MessageItem
+                    message={msg}
+                    currentUserId={session?.user.id ?? ""}
+                    onEdit={handleEditMessage}
+                    onDelete={handleDeleteMessage}
+                    onReaction={handleToggleReaction}
+                    onReply={handleReply}
+                  />
+                </React.Fragment>
+              );
+            })}
             <div ref={bottomRef} />
+            {showScrollBtn && (
+              <button
+                onClick={() => {
+                  bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                  setShowScrollBtn(false);
+                }}
+                className="sticky bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-xs font-medium shadow-lg hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors z-10"
+              >
+                ↓ Scroll to bottom
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -642,30 +767,46 @@ function MessageItem({
               message.directMessageReactions.reduce(
                 (acc, r) => {
                   if (!acc[r.emoji]) {
-                    acc[r.emoji] = { count: 0, hasReacted: false };
+                    acc[r.emoji] = { count: 0, hasReacted: false, users: [] };
                   }
                   acc[r.emoji].count++;
                   if (r.userId === currentUserId)
                     acc[r.emoji].hasReacted = true;
+                  acc[r.emoji].users.push(r.user.name);
                   return acc;
                 },
-                {} as Record<string, { count: number; hasReacted: boolean }>,
+                {} as Record<
+                  string,
+                  { count: number; hasReacted: boolean; users: string[] }
+                >,
               ),
-            ).map(([emoji, { count, hasReacted }]) => (
-              <button
-                key={emoji}
-                onClick={() => onReaction(message.id, emoji)}
-                className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                  hasReacted
-                    ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
-                    : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                }`}
-              >
-                <span>{emoji}</span>
-                <span className="text-zinc-600 dark:text-zinc-400">
-                  {count}
-                </span>
-              </button>
+            ).map(([emoji, { count, hasReacted, users }]) => (
+              <Tooltip key={emoji}>
+                <TooltipTrigger asChild>
+                  <button
+                    key={emoji}
+                    onClick={() => onReaction(message.id, emoji)}
+                    className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                      hasReacted
+                        ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
+                        : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <span>{emoji}</span>
+                    <span className="text-zinc-600 dark:text-zinc-400">
+                      {count}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="text-xs max-w-[200px] text-center"
+                >
+                  {users.length < 3
+                    ? users.join(", ")
+                    : `${users.slice(0, 2).join(", ")} and ${users.length - 2} other${users.length - 2 > 1 ? "s" : ""}`}
+                </TooltipContent>
+              </Tooltip>
             ))}
           </div>
         )}

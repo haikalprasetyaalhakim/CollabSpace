@@ -16,3 +16,30 @@ export function getInitials(name: string) {
       .toUpperCase() || "U"
   );
 }
+
+export function formatDateLabel(date: Date): string {
+  const now = new Date();
+  const d = new Date(date);
+
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  if (isToday) return "Today";
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterDay =
+    d.getDate() === yesterday.getDate() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterDay) return "Yesterday";
+
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}

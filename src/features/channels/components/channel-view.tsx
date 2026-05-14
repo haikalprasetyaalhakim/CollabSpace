@@ -1,7 +1,6 @@
 "use client";
 
 import { ImageGrid } from "@/components/image-grid";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,6 +12,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   ALLOWED_EMOJIS,
   MAX_IMAGE_PER_MESSAGE,
@@ -20,8 +25,9 @@ import {
 } from "@/constants";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
+import { useUnread } from "@/hooks/use-unread";
 import { authClient } from "@/lib/auth-client";
-import { getInitials } from "@/lib/utils";
+import { formatDateLabel, getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
 import {
   Hash,
@@ -37,39 +43,6 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
-import { useUnread } from "@/hooks/use-unread";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
-function formatDateLabel(date: Date): string {
-  const now = new Date();
-  const d = new Date(date);
-
-  const isToday =
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear();
-
-  if (isToday) return "Today";
-
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterDay =
-    d.getDate() === yesterday.getDate() &&
-    d.getMonth() === yesterday.getMonth() &&
-    d.getFullYear() === yesterday.getFullYear();
-
-  if (isYesterDay) return "Yesterday";
-
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
 
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);

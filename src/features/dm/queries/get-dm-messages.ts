@@ -1,3 +1,4 @@
+import { PAGINATION_LIMIT } from "@/constants";
 import prisma from "@/lib/prisma";
 
 export async function getDmMessages(conversationId: string) {
@@ -12,6 +13,7 @@ export async function getDmMessages(conversationId: string) {
           id: true,
           emoji: true,
           userId: true,
+          user: { select: { name: true } },
         },
       },
       replyTo: {
@@ -22,11 +24,11 @@ export async function getDmMessages(conversationId: string) {
         },
       },
     },
-    orderBy: { createdAt: "asc" },
-    take: 50,
+    orderBy: { createdAt: "desc" },
+    take: PAGINATION_LIMIT,
   });
 
-  return messages;
+  return messages.reverse();
 }
 
 export type DmMessageWithUser = Awaited<
