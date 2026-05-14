@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   if (!session)
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success } = rateLimit(session.user.id, {
+  const { success } = await rateLimit(session.user.id, {
     limit: 20,
     windowMs: 10 * 1000,
   });
