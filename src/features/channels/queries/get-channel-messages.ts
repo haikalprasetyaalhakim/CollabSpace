@@ -1,3 +1,4 @@
+import { PAGINATION_LIMIT } from "@/constants";
 import prisma from "@/lib/prisma";
 
 export async function getChannelMessages(channelId: string) {
@@ -23,11 +24,11 @@ export async function getChannelMessages(channelId: string) {
         },
       },
     },
-    orderBy: { createdAt: "asc" },
-    take: 50,
+    orderBy: { createdAt: "desc" },
+    take: PAGINATION_LIMIT,
   });
 
-  return messages;
+  return messages.reverse();
 }
 
 export type MessageWithUser = Awaited<

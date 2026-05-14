@@ -13,7 +13,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ALLOWED_EMOJIS, MAX_IMAGE_PER_MESSAGE } from "@/constants";
+import {
+  ALLOWED_EMOJIS,
+  MAX_IMAGE_PER_MESSAGE,
+  PAGINATION_LIMIT,
+} from "@/constants";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { authClient } from "@/lib/auth-client";
@@ -393,6 +397,13 @@ export function ChannelView({
     }>
   >([]);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [hasMore, setHasMore] = useState(
+    initialMessages.length === PAGINATION_LIMIT,
+  );
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(
+    initialMessages[0]?.id ?? null,
+  );
 
   const { data: session } = authClient.useSession();
 
@@ -486,6 +497,37 @@ export function ChannelView({
     isAtBottomRef.current = atBottom;
     setShowScrollBtn(!atBottom);
   }, []);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!cursor || isLoadingMore) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    setIsLoadingMore(true);
+    const prevScrollHeight = container.scrollHeight;
+
+    try {
+      const res = await fetch(
+        `/api/channels/${channelId}/messages?cursor=${cursor}`,
+      );
+      const data = (await res.json()) as {
+        messages: MessageWithUser[];
+        hasMore: boolean;
+      };
+
+      setMessages((prev) => [...data.messages, ...prev]);
+      setHasMore(data.hasMore);
+      setCursor(data.messages[0]?.id ?? null);
+
+      requestAnimationFrame(() => {
+        container.scrollTop += container.scrollHeight - prevScrollHeight;
+      });
+    } catch {
+      toast.error("Failed to load messages");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [cursor, isLoadingMore, channelId]);
 
   useEffect(() => {
     markChannelRead(channelId);
@@ -806,6 +848,20 @@ export function ChannelView({
             <EmptyState channelName={channelName} />
           ) : (
             <div className="space-y-1">
+              {hasMore && (
+                <div className="flex justify-center py-3">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                    className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoadingMore && (
+                      <span className="size-3 border border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {isLoadingMore ? "Loading..." : "Load previous messages"}
+                  </button>
+                </div>
+              )}
               {messages.map((msg, index) => {
                 const prev = messages[index - 1];
                 const showDateSeparator =

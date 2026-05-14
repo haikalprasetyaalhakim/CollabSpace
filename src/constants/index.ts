@@ -19,3 +19,5 @@ export const statusColor: Record<UserStatus, string> = {
 export const MAX_IMAGE_PER_MESSAGE = 4;
 
 export const ALLOWED_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👀"];
+
+export const PAGINATION_LIMIT = 5;
