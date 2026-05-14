@@ -14,7 +14,7 @@ export async function GET() {
   const stream = new ReadableStream({
     start(controller) {
       streamController = controller;
-      userConnected(userId, controller);
+      userConnected(userId, session.user.status ?? "online", controller);
     },
     cancel() {
       userDisconnected(userId, streamController);

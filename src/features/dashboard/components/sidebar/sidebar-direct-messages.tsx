@@ -10,6 +10,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { statusColor } from "@/constants";
 import NewDmDialog from "@/features/dm/components/new-dm-dialog";
 import { ConversationWithUser } from "@/features/dm/queries/get-user-conversations";
 import { usePresence } from "@/hooks/use-presence";
@@ -26,7 +27,7 @@ type Props = {
 
 export default function SidebarDirectMessages({ conversations }: Props) {
   const pathname = usePathname();
-  const onlineUserIds = usePresence();
+  const { onlineUserIds, userStatuses } = usePresence();
   const { conversationUnread } = useUnread();
 
   const [newDmOpen, setNewDmOpen] = useState(false);
@@ -63,7 +64,9 @@ export default function SidebarDirectMessages({ conversations }: Props) {
                           </AvatarFallback>
                         </Avatar>
                         {onlineUserIds.has(conv.otherUser.id) && (
-                          <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-green-500 border-2 border-white dark:border-[#09090b]" />
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 size-2 rounded-full border-2 border-white dark:border-[#09090b] ${statusColor[(userStatuses.get(conv.otherUser.id) ?? "online") as keyof typeof statusColor]}`}
+                          />
                         )}
                       </div>
                       <span className="truncate">{conv.otherUser.name}</span>
