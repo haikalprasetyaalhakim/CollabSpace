@@ -42,6 +42,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import UserProfileCard from "@/components/user-profile-card";
 
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);
@@ -723,12 +724,22 @@ function MessageItem({
       id={`message-${message.id}`}
       className="relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50"
     >
-      <Avatar className="size-8">
-        <AvatarImage src={message.user.image ?? ""} />
-        <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-          {getInitials(message.user.name)}
-        </AvatarFallback>
-      </Avatar>
+      <UserProfileCard
+        userId={message.user.id}
+        name={message.user.name}
+        image={message.user.image}
+        isCurrentUser={message.user.id === currentUserId}
+        side="right"
+      >
+        <button className="shrink-0 cursor-pointer rounded-full">
+          <Avatar className="size-8">
+            <AvatarImage src={message.user.image ?? ""} />
+            <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+              {getInitials(message.user.name)}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </UserProfileCard>
       <div className="flex flex-col gap-0.5 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
