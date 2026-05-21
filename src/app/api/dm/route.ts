@@ -80,7 +80,12 @@ export async function POST(request: NextRequest) {
         },
       },
       directMessageReactions: {
-        select: { id: true, emoji: true, userId: true },
+        select: {
+          id: true,
+          emoji: true,
+          userId: true,
+          user: { select: { name: true } },
+        },
       },
     },
   });
@@ -94,6 +99,26 @@ export async function POST(request: NextRequest) {
     type: "new-dm-message",
     conversationId,
   });
+
+  if (content) {
+    const mentionMatches = content.match(/@(\w+)/g);
+    if (mentionMatches) {
+      const usernames = [...new Set(mentionMatches.map((m) => m.slice(1)))];
+
+      const mentionedUser = await prisma.user.findFirst({
+        where: { username: { in: usernames }, id: otherUser },
+        select: { id: true },
+      });
+
+      if (mentionedUser) {
+        broadcastToUser(mentionedUser.id, {
+          type: "mention",
+          conversationId,
+          messageId: message.id,
+        });
+      }
+    }
+  }
 
   broadcastToChannel(`dm-${conversationId}`, {
     type: "new-message",

@@ -20,4 +20,4 @@ export const MAX_IMAGE_PER_MESSAGE = 4;
 
 export const ALLOWED_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👀"];
 
-export const PAGINATION_LIMIT = 5;
+export const PAGINATION_LIMIT = 25

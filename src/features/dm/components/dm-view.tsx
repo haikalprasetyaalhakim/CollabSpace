@@ -43,6 +43,19 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+function renderContent(content: string) {
+  const parts = content.split(/(@\w+)/g);
+  return parts.map((part, i) =>
+    part.startsWith("@") ? (
+      <span key={i} className="text-blue-500 dark:text-blue-400 font-medium">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
+
 type OtherUser = {
   id: string;
   name: string;
@@ -53,10 +66,16 @@ type Props = {
   conversationId: string;
   otherUser: OtherUser;
   initialMessages: DmMessageWithUser[];
+  highlightMessageId: string | undefined;
 };
 
-export function DmView({ conversationId, initialMessages, otherUser }: Props) {
-  const { markConversationRead } = useUnread();
+export function DmView({
+  conversationId,
+  initialMessages,
+  otherUser,
+  highlightMessageId,
+}: Props) {
+  const { markConversationRead, clearConversationMentions } = useUnread();
 
   const [messages, setMessages] =
     useState<DmMessageWithUser[]>(initialMessages);
@@ -81,7 +100,7 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const revokeAllRef = useRef<() => void>(() => {});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isAtBottomRef = useRef(true);
+  const isAtBottomRef = useRef(!highlightMessageId);
 
   const { data: session } = authClient.useSession();
 
@@ -134,6 +153,28 @@ export function DmView({ conversationId, initialMessages, otherUser }: Props) {
   useEffect(() => {
     markConversationRead(conversationId);
   }, [markConversationRead, conversationId]);
+
+  useEffect(() => {
+    clearConversationMentions(conversationId);
+  }, [clearConversationMentions, conversationId]);
+
+  useEffect(() => {
+    if (!highlightMessageId) return;
+
+    const tryScroll = () => {
+      const el = document.getElementById(`message-${highlightMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("message-flash");
+        setTimeout(() => {
+          el.classList.remove("message-flash");
+        }, 1000);
+      }
+    };
+
+    const raf = requestAnimationFrame(() => setTimeout(tryScroll, 100));
+    return () => cancelAnimationFrame(raf);
+  }, [highlightMessageId]);
 
   useEffect(() => {
     if (isAtBottomRef.current) {
@@ -678,7 +719,10 @@ function MessageItem({
   });
 
   return (
-    <div className="relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50">
+    <div
+      id={`message-${message.id}`}
+      className="relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50"
+    >
       <Avatar className="size-8">
         <AvatarImage src={message.user.image ?? ""} />
         <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
@@ -754,7 +798,7 @@ function MessageItem({
         ) : (
           message.content && (
             <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
-              {message.content}
+              {renderContent(message.content)}
             </p>
           )
         )}

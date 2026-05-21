@@ -17,6 +17,8 @@ type UnreadContextType = {
   markConversationRead: (conversationId: string) => void;
   mentionedChannels: Map<string, Set<string>>;
   clearChannelMentions: (channelId: string) => void;
+  mentionedConversations: Map<string, Set<string>>;
+  clearConversationMentions: (conversationId: string) => void;
 };
 
 const UnreadContext = createContext<UnreadContextType | null>(null);
@@ -55,6 +57,10 @@ export function UnreadProvider({
     }, new Map<string, Set<string>>()),
   );
 
+  const [mentionedConversations, setMentionedConversations] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+
   const markChannelRead = useCallback((channelId: string) => {
     setChannelUnread((prev) => ({ ...prev, [channelId]: 0 }));
 
@@ -82,6 +88,18 @@ export function UnreadProvider({
       method: "POST",
     }).catch(() => console.error("[clearChannelMentions] Failed to sync"));
   }, []);
+
+  const clearConversationMentions = useCallback((conversationId: string) => {
+    setMentionedConversations((prev) => {
+      const next = new Map(prev);
+      next.delete(conversationId);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     const eventSource = new EventSource("/api/notifications");
@@ -115,7 +133,7 @@ export function UnreadProvider({
         }
       }
 
-      if (data.type === "mention") {
+      if (data.type === "mention" && data.channelId) {
         const { channelId, messageId } = data as {
           channelId: string;
           messageId: string;
@@ -125,6 +143,22 @@ export function UnreadProvider({
             const next = new Map(prev);
             const existing = next.get(channelId) ?? new Set<string>();
             next.set(channelId, existing.add(messageId));
+            return next;
+          });
+        }
+      }
+
+      if (data.type === "mention" && data.conversationId) {
+        const { conversationId, messageId } = data as {
+          conversationId: string;
+          messageId: string;
+        };
+
+        if (currentPath !== `/dm/${conversationId}`) {
+          setMentionedConversations((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(conversationId) ?? new Set<string>();
+            next.set(conversationId, existing.add(messageId));
             return next;
           });
         }
@@ -147,6 +181,8 @@ export function UnreadProvider({
         markConversationRead,
         mentionedChannels,
         clearChannelMentions,
+        mentionedConversations,
+        clearConversationMentions,
       }}
     >
       {children}

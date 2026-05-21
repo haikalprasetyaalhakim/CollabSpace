@@ -10,12 +10,14 @@ import { redirect } from "next/navigation";
 
 type Props = {
   params: Promise<{ conversationId: string }>;
+  searchParams: Promise<{ highlight?: string }>;
 };
 
-export default async function Page({ params }: Props) {
+export default async function Page({ params, searchParams }: Props) {
   const session = await serverCompReqAuth();
 
   const { conversationId } = await params;
+  const { highlight } = await searchParams;
 
   const [conversation, initialMessages] = await Promise.all([
     prisma.conversation.findFirst({
@@ -61,6 +63,7 @@ export default async function Page({ params }: Props) {
         conversationId={conversationId}
         otherUser={otherUser}
         initialMessages={initialMessages}
+        highlightMessageId={highlight}
       />
     </SidebarInset>
   );
