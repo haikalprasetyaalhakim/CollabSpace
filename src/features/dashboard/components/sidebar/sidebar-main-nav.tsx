@@ -7,7 +7,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, MessageSquare, Video } from "lucide-react";
+import { useSearch } from "@/hooks/use-search";
+import { LayoutDashboard, MessageSquare, Search, Video } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -31,11 +32,22 @@ const navItems = [
 
 export default function SidebarMainNav() {
   const pathname = usePathname();
+  const { setOpen } = useSearch();
 
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Search (Ctrl+K)"
+              onClick={() => setOpen(true)}
+            >
+              <Search />
+              <span>Search</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
           {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
