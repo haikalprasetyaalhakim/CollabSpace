@@ -36,3 +36,19 @@ export function broadcastToChannel(channelId: string, data: unknown) {
     }
   });
 }
+
+if (process.env.NODE_ENV !== "test") {
+  const pingData = new TextEncoder().encode(": ping\n\n");
+
+  setInterval(() => {
+    subscribers.forEach((controllers) => {
+      controllers.forEach((cntrl) => {
+        try {
+          cntrl.enqueue(pingData);
+        } catch {
+          controllers.delete(cntrl);
+        }
+      });
+    });
+  }, 20000);
+}

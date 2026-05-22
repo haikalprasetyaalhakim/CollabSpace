@@ -56,3 +56,17 @@ function broadcastPresence(): void {
     }
   });
 }
+
+if (process.env.NODE_ENV !== "test") {
+  const pingData = new TextEncoder().encode(": ping\n\n");
+
+  setInterval(() => {
+    presenceSubscribers.forEach((ctrl) => {
+      try {
+        ctrl.enqueue(pingData);
+      } catch {
+        presenceSubscribers.delete(ctrl);
+      }
+    });
+  }, 20000);
+}

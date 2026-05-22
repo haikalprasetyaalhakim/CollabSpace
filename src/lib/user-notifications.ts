@@ -34,3 +34,19 @@ export function broadcastToUser(userId: string, data: unknown): void {
     }
   });
 }
+
+if (process.env.NODE_ENV !== "test") {
+  const pingData = new TextEncoder().encode(": ping\n\n");
+
+  setInterval(() => {
+    userSubscribers.forEach((controllers) => {
+      controllers.forEach((ctrl) => {
+        try {
+          ctrl.enqueue(pingData);
+        } catch {
+          controllers.delete(ctrl);
+        }
+      });
+    });
+  }, 20000);
+}
