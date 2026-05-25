@@ -67,6 +67,7 @@ function MessageItem({
   onReply,
   onPin,
   isPinned,
+  isCompact = false,
 }: {
   message: MessageWithUser;
   currentUserId: string;
@@ -76,6 +77,7 @@ function MessageItem({
   onReply: (message: MessageWithUser) => void;
   onPin: (messageId: string) => void;
   isPinned: boolean;
+  isCompact?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -90,37 +92,51 @@ function MessageItem({
   return (
     <div
       id={`message-${message.id}`}
-      className="relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50"
+      className={`relative flex items-start gap-3 px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/40 hover:bg-zinc-50/70 ${isCompact ? "py-0.5" : "mt-2.5 py-1.5"}`}
     >
-      <UserProfileCard
-        userId={message.user.id}
-        name={message.user.name}
-        image={message.user.image}
-        isCurrentUser={message.user.id === currentUserId}
-        side="right"
-      >
-        <button className="shrink-0 cursor-pointer rounded-full">
-          <Avatar className="size-8">
-            <AvatarImage src={message.user.image ?? ""} />
-            <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-              {getInitials(message.user.name)}
-            </AvatarFallback>
-          </Avatar>
-        </button>
-      </UserProfileCard>
-
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
-            {message.user.name}
+      {isCompact ? (
+        <div className="w-8 shrink-0 flex items-center justify-end pr-1.5 select-none h-5">
+          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity">
+            {new Date(message.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
           </span>
-          <span className="text-xs text-zinc-400" suppressHydrationWarning>
-            {time}
-          </span>
-          {isPinned && <Pin className="size-3 text-zinc-400 fill-zinc-400" />}
         </div>
+      ) : (
+        <UserProfileCard
+          userId={message.user.id}
+          name={message.user.name}
+          image={message.user.image}
+          isCurrentUser={message.user.id === currentUserId}
+          side="right"
+        >
+          <button className="shrink-0 cursor-pointer rounded-full">
+            <Avatar className="size-8">
+              <AvatarImage src={message.user.image ?? ""} />
+              <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                {getInitials(message.user.name)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </UserProfileCard>
+      )}
 
-        {message.replyTo && (
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+        {!isCompact && (
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
+              {message.user.name}
+            </span>
+            <span className="text-xs text-zinc-400" suppressHydrationWarning>
+              {time}
+            </span>
+            {isPinned && <Pin className="size-3 text-zinc-400 fill-zinc-400" />}
+          </div>
+        )}
+
+        {message.replyTo && !isCompact && (
           <div className="flex items-center gap-1.5 border-l-2 border-zinc-300 dark:border-zinc-600 pl-2 py-0.5 mb-0.5 rounded-sm">
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0">
               {message.replyTo.user.name}
@@ -848,10 +864,21 @@ export function ChannelView({
               )}
               {messages.map((msg, index) => {
                 const prev = messages[index - 1];
+
+                const isSameUser = prev && prev.userId === msg.userId;
+                const isTimeClose =
+                  prev &&
+                  new Date(msg.createdAt).getTime() -
+                    new Date(prev.createdAt).getTime() <
+                    120000;
+
                 const showDateSeparator =
                   !prev ||
                   new Date(msg.createdAt).toDateString() !==
                     new Date(prev.createdAt).toDateString();
+
+                const isCompact =
+                  isSameUser && isTimeClose && !showDateSeparator;
 
                 return (
                   <React.Fragment key={msg.id}>
@@ -874,6 +901,7 @@ export function ChannelView({
                       onReply={handleReply}
                       onPin={handleTogglePin}
                       isPinned={pinnedIds.has(msg.id)}
+                      isCompact={isCompact}
                     />
                   </React.Fragment>
                 );
