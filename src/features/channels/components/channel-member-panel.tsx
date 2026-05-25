@@ -38,7 +38,7 @@ export default function ChannelMemberPanel({ members, currentUserId }: Props) {
   const offline = members.filter((m) => m.status === "offline");
 
   return (
-    <aside className="w-56 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-y-auto">
+    <aside className="w-56 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-y-auto overflow-x-hidden">
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
           Members - {members.length}

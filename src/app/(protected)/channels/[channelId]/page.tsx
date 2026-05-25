@@ -77,7 +77,7 @@ export default async function Page({ params, searchParams }: Props) {
   if (!membership) redirect("/dashboard");
 
   return (
-    <SidebarInset>
+    <SidebarInset className="h-svh overflow-hidden">
       <header className="flex items-center gap-3 px-6 py-3.5 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md sticky top-0 z-10">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="h-4" />
@@ -109,7 +109,7 @@ export default async function Page({ params, searchParams }: Props) {
         </div>
       </header>
 
-      <div className="flex overflow-hidden">
+      <div className="flex overflow-hidden flex-1 min-h-0">
         <div className="flex-1">
           <ChannelView
             channelId={channelId}
