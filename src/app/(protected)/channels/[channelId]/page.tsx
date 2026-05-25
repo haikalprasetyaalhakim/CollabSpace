@@ -78,16 +78,26 @@ export default async function Page({ params, searchParams }: Props) {
 
   return (
     <SidebarInset>
-      <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <SidebarTrigger />
-        <Separator orientation="vertical" className="h-full" />
-        <Hash className="size-4 text-zinc-500" />
-        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-          {channel.name}
-        </span>
-        <span className="text-xs text-zinc-400 ml-1">
-          {channel._count.channelMembers} members
-        </span>
+      <header className="flex items-center gap-3 px-6 py-3.5 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md sticky top-0 z-10">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="h-4" />
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5">
+            <Hash className="size-4 text-zinc-500" />
+            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50 truncate">
+              {channel.name}
+            </span>
+            <span className="text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
+              {channel._count.channelMembers} member
+              {channel._count.channelMembers > 1 ? "s" : ""}
+            </span>
+          </div>
+          {channel.description && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 max-w-[500px]">
+              {channel.description}
+            </p>
+          )}
+        </div>
 
         <div className="ml-auto">
           <LeaveChannelButton

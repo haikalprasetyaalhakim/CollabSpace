@@ -113,7 +113,7 @@ function MemberRow({ member, isCurrentUser }: MemberRowProps) {
               </AvatarFallback>
             </Avatar>
             <span
-              className={`absolute bottom-0 right-0 size-2 rounded-full border border-white dark:border-zinc-900 ${statusColor[member.status]}`}
+              className={`absolute bottom-0 right-0 size-2 rounded-full border border-white dark:border-zinc-900 ${statusColor[member.status]} ${member.status === "online" ? "animate-status-pulse" : ""}`}
             />
           </div>
 
