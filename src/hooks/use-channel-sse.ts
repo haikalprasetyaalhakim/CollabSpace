@@ -23,6 +23,11 @@ type PinUpdatePayload = {
   isPinned: boolean;
 };
 
+type ConversationReadPayload = {
+  userId: string;
+  lastReadAt: string;
+};
+
 export function useChannelSSE<T>(
   channelId: string,
   onNewMessage: (message: T, clientId?: string) => void,
@@ -31,6 +36,7 @@ export function useChannelSSE<T>(
   onMessageDeleted?: (messageId: string) => void,
   onReactionUpdated?: (payload: ReactionUpdatePayload) => void,
   onPinUpdated?: (payload: PinUpdatePayload) => void,
+  onConversationRead?: (payload: ConversationReadPayload) => void,
 ) {
   useEffect(() => {
     const eventSource = new EventSource(`/api/sse?channelId=${channelId}`);
@@ -60,6 +66,11 @@ export function useChannelSSE<T>(
           messageId: data.messageId as string,
           isPinned: data.isPinned,
         });
+      } else if (data.type === "conversation-read" && onConversationRead) {
+        onConversationRead({
+          userId: data.userId,
+          lastReadAt: data.lastReadAt,
+        });
       }
     };
 
@@ -78,5 +89,6 @@ export function useChannelSSE<T>(
     onMessageDeleted,
     onReactionUpdated,
     onPinUpdated,
+    onConversationRead,
   ]);
 }

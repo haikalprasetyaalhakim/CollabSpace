@@ -68,6 +68,7 @@ type Props = {
   otherUser: OtherUser;
   initialMessages: DmMessageWithUser[];
   highlightMessageId: string | undefined;
+  initialOtherLastReadAt: string | null;
 };
 
 export function DmView({
@@ -75,6 +76,7 @@ export function DmView({
   initialMessages,
   otherUser,
   highlightMessageId,
+  initialOtherLastReadAt,
 }: Props) {
   const { markConversationRead, clearConversationMentions } = useUnread();
 
@@ -93,6 +95,9 @@ export function DmView({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(
     initialMessages[0]?.id ?? null,
+  );
+  const [otherLastReadAt, setOtherLastReadAt] = useState<string | null>(
+    initialOtherLastReadAt,
   );
 
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -349,6 +354,15 @@ export function DmView({
     [],
   );
 
+  const handleConversationRead = useCallback(
+    (payload: { userId: string; lastReadAt: string }) => {
+      if (payload.userId === otherUser.id) {
+        setOtherLastReadAt(payload.lastReadAt);
+      }
+    },
+    [otherUser.id],
+  );
+
   useChannelSSE<DmMessageWithUser>(
     `dm-${conversationId}`,
     handleNewMessage,
@@ -356,6 +370,8 @@ export function DmView({
     handleMessageUpdated,
     handleMessageDeleted,
     handleReactionUpdated,
+    undefined,
+    handleConversationRead,
   );
 
   const handleSend = async () => {
@@ -487,8 +503,17 @@ export function DmView({
     };
   }, [sendTypingEvent]);
 
+  const lastSeenMessageId = [...messages]
+    .reverse()
+    .find(
+      (m) =>
+        m.userId === session?.user.id &&
+        otherLastReadAt &&
+        new Date(otherLastReadAt) >= new Date(m.createdAt),
+    )?.id;
+
   return (
-    <div className="flex flex-col h-[calc(100svh-49px)]">
+    <div className="flex flex-col h-full">
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
@@ -552,6 +577,25 @@ export function DmView({
                     onReaction={handleToggleReaction}
                     onReply={handleReply}
                   />
+                  {lastSeenMessageId === msg.id && (
+                    <div className="flex justify-end mr-4 -mt-1 mb-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Avatar className="size-4 ring-1 ring-white dark:ring-zinc-950">
+                            <AvatarImage src={otherUser.image ?? ""} />
+                            <AvatarFallback className="text-[8px] font-medium bg-zinc-100 dark:bg-zinc-800">
+                              {getInitials(otherUser.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <span className="text-[10px]">
+                            Seen by {otherUser.name}
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
                 </React.Fragment>
               );
             })}

@@ -31,6 +31,7 @@ export default async function Page({ params, searchParams }: Props) {
       include: {
         memberOne: { select: { id: true, name: true, image: true } },
         memberTwo: { select: { id: true, name: true, image: true } },
+        conversationReads: true,
       },
     }),
     getDmMessages(conversationId),
@@ -43,9 +44,16 @@ export default async function Page({ params, searchParams }: Props) {
       ? conversation.memberTwo
       : conversation.memberOne;
 
+  const otherRead = conversation.conversationReads.find(
+    (cr) => cr.userId === otherUser.id,
+  );
+  const initialOtherLastRead = otherRead
+    ? otherRead.lastReadAt.toISOString()
+    : null;
+
   return (
-    <SidebarInset>
-      <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+    <SidebarInset className="h-svh overflow-hidden">
+      <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md sticky top-0 z-10">
         <SidebarTrigger />
         <Separator orientation="vertical" className="h-4" />
         <Avatar className="size-5">
@@ -59,12 +67,17 @@ export default async function Page({ params, searchParams }: Props) {
         </span>
       </header>
 
-      <DmView
-        conversationId={conversationId}
-        otherUser={otherUser}
-        initialMessages={initialMessages}
-        highlightMessageId={highlight}
-      />
+      <div className="flex overflow-hidden flex-1 min-w-0">
+        <div className="flex-1">
+          <DmView
+            conversationId={conversationId}
+            otherUser={otherUser}
+            initialMessages={initialMessages}
+            highlightMessageId={highlight}
+            initialOtherLastReadAt={initialOtherLastRead}
+          />
+        </div>
+      </div>
     </SidebarInset>
   );
 }
