@@ -2,7 +2,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import ChannelMemberPanel from "@/features/channels/components/channel-member-panel";
 import { ChannelView } from "@/features/channels/components/channel-view";
-import { LeaveChannelButton } from "@/features/channels/components/leave-channel-button";
+import { LeaveChannelButton } from "@/features/channels/components/channel-settings-button";
 import { getChannelMessages } from "@/features/channels/queries/get-channel-messages";
 import { getPinnedMessageIds } from "@/features/channels/queries/get-pinned-messages";
 import prisma from "@/lib/prisma";
@@ -42,6 +42,7 @@ export default async function Page({ params, searchParams }: Props) {
           id: true,
           name: true,
           description: true,
+          ownerId: true,
           _count: { select: { channelMembers: true } },
         },
       }),
@@ -92,6 +93,8 @@ export default async function Page({ params, searchParams }: Props) {
           <LeaveChannelButton
             channelId={channel.id}
             channelName={channel.name}
+            isOwner={channel.ownerId === session.user.id || !channel.ownerId}
+            channelDescription={channel.description}
           />
         </div>
       </header>

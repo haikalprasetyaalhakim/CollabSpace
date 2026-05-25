@@ -30,6 +30,7 @@ export async function createChannel(data: {
         data: {
           name,
           description: data.description?.trim() || null,
+          ownerId: session.user.id,
         },
       });
 
