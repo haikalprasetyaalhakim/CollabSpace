@@ -30,20 +30,34 @@ import { authClient } from "@/lib/auth-client";
 import { formatDateLabel, getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
 import {
+  Bell,
   Hash,
   ImageIcon,
+  MessageSquare,
   Pencil,
   Pin,
   Reply,
+  Search,
   Send,
+  Settings,
   SmilePlus,
   Trash2,
+  UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MessageWithUser } from "../queries/get-channel-messages";
 import UserProfileCard from "@/components/user-profile-card";
+import { useRouter } from "next/navigation";
+import InviteMemberDialog from "@/components/invite-members-dialog";
+import PersonalizeChannelDialog from "./personalize-channel-dialog";
+import ChannelMemberPanel from "./channel-member-panel";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { LeaveChannelButton } from "./channel-settings-button";
+import { useSearch } from "@/hooks/use-search";
 
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);
@@ -339,19 +353,93 @@ function MessageItem({
   );
 }
 
-function EmptyState({ channelName }: { channelName: string }) {
+function EmptyState({
+  channelName,
+  onFocusInput,
+  onOpenInvite,
+  isOwner,
+  onOpenPersonalize,
+}: {
+  channelName: string;
+  onFocusInput: () => void;
+  onOpenInvite: () => void;
+  onOpenPersonalize: () => void;
+  isOwner: boolean;
+}) {
+  const handleInvite = () => {
+    onOpenInvite();
+  };
+  const handlePersonalize = () => {
+    if (isOwner) {
+      onOpenPersonalize();
+    } else {
+      toast.error("Only the channel owner can personalize this channel.");
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-3 h-full">
-      <div className="size-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-        <Hash className="size-5 text-zinc-400" />
+    <div className="max-w-2xl mx-auto flex flex-col items-center justify-center py-12 px-6 text-center space-y-6 h-full select-none">
+      <div className="size-16 rounded-3xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
+        <Hash className="size-8" />
       </div>
-      <div className="text-center">
-        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Welcome to #{channelName}
+      <div className="space-y-2">
+        <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-700 dark:from-white dark:via-zinc-100 dark:to-zinc-300 bg-clip-text text-transparent">
+          Welcome to #{channelName}!
+        </h2>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+          This is the start of the #{channelName} channel. Invite your team
+          members or start the conversation with your first message!
         </p>
-        <p className="text-xs text-zinc-400 mt-1">
-          No messages yet. Be the first to say something!
-        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl mt-6">
+        <div
+          onClick={handleInvite}
+          className="flex items-center gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:shadow-md group text-left"
+        >
+          <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors duration-200 text-zinc-500 dark:text-zinc-400 shrink-0">
+            <UserPlus className="size-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 transition-colors duration-200">
+              Invite Friends
+            </h4>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              Add other members of the workspace to this channel
+            </p>
+          </div>
+        </div>
+        <div
+          onClick={onFocusInput}
+          className="flex items-center gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:shadow-md group text-left"
+        >
+          <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-colors duration-200 text-zinc-500 dark:text-zinc-400 shrink-0">
+            <MessageSquare className="size-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 transition-colors duration-200">
+              Send your first message
+            </h4>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              Write a message to say hello to everyone
+            </p>
+          </div>
+        </div>
+        <div
+          onClick={handlePersonalize}
+          className="flex items-center gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:shadow-md group text-left sm:col-span-2"
+        >
+          <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-pink-500 group-hover:text-white transition-colors duration-200 text-zinc-500 dark:text-zinc-400 shrink-0">
+            <Settings className="size-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 transition-colors duration-200">
+              Personalize Channel
+            </h4>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              Customize the name and description of this channel
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -360,6 +448,8 @@ function EmptyState({ channelName }: { channelName: string }) {
 type Props = {
   channelId: string;
   channelName: string;
+  channelDescription: string | null;
+  ownerId: string | null;
   initialMessages: MessageWithUser[];
   initialPinnedIds: string[];
   members: {
@@ -367,8 +457,11 @@ type Props = {
     name: string;
     image: string | null;
     username: string | null;
+    status: any;
   }[];
   highlightMessageId: string | undefined;
+  memberCount: number;
+  currentUserId: string;
 };
 
 export function ChannelView({
@@ -378,6 +471,10 @@ export function ChannelView({
   initialPinnedIds,
   members,
   highlightMessageId,
+  channelDescription,
+  ownerId,
+  memberCount,
+  currentUserId,
 }: Props) {
   const [messages, setMessages] = useState<MessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -407,6 +504,11 @@ export function ChannelView({
   const [cursor, setCursor] = useState<string | null>(
     initialMessages[0]?.id ?? null,
   );
+  const router = useRouter();
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [showPersonalizeDialog, setShowPersonalizeDialog] = useState(false);
+  const [showMemberPanel, setShowMemberPanel] = useState(true);
+  const { setOpen } = useSearch();
 
   const { data: session } = authClient.useSession();
 
@@ -829,286 +931,406 @@ export function ChannelView({
     : [];
 
   return (
-    <div className="flex h-full">
-      <div className="flex flex-col flex-1 min-w-0">
-        {pinnedIds.size > 0 && (
-          <button
-            onClick={() => setShowPinnedPanel((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-xs text-zinc-500 shrink-0"
-          >
-            <Pin className="size-3 fill-zinc-400 text-zinc-400" />
-            <span>
-              {pinnedIds.size} pinned message{pinnedIds.size > 1 ? "s" : ""}
+    <div className="flex flex-col flex-1 min-h-0 w-full overflow-hidden">
+      {/* Discord-style Header */}
+      <header className="flex items-center gap-3 px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md shrink-0">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="h-4" />
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5">
+            <Hash className="size-4 text-zinc-500" />
+            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50 truncate">
+              {channelName}
             </span>
-          </button>
-        )}
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto py-4"
-        >
-          {messages.length === 0 ? (
-            <EmptyState channelName={channelName} />
-          ) : (
-            <div className="space-y-1">
-              {hasMore && (
-                <div className="flex justify-center py-3">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={isLoadingMore}
-                    className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
-                  >
-                    {isLoadingMore && (
-                      <span className="size-3 border border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                    )}
-                    {isLoadingMore ? "Loading..." : "Load previous messages"}
-                  </button>
-                </div>
-              )}
-              {messages.map((msg, index) => {
-                const prev = messages[index - 1];
-
-                const isSameUser = prev && prev.userId === msg.userId;
-                const isTimeClose =
-                  prev &&
-                  new Date(msg.createdAt).getTime() -
-                    new Date(prev.createdAt).getTime() <
-                    120000;
-
-                const showDateSeparator =
-                  !prev ||
-                  new Date(msg.createdAt).toDateString() !==
-                    new Date(prev.createdAt).toDateString();
-
-                const isCompact =
-                  isSameUser && isTimeClose && !showDateSeparator;
-
-                return (
-                  <React.Fragment key={msg.id}>
-                    {showDateSeparator && (
-                      <div className="flex items-center gap-3 px-4 py-2">
-                        <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-                        <span className="text-xs text-zinc-400 font-medium shrink-0">
-                          {formatDateLabel(new Date(msg.createdAt))}
-                        </span>
-                        <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-                      </div>
-                    )}
-                    <MessageItem
-                      key={msg.id}
-                      message={msg}
-                      currentUserId={session?.user.id!}
-                      onEdit={handleEditMessage}
-                      onDelete={handleDeleteMessage}
-                      onReaction={handleToggleReaction}
-                      onReply={handleReply}
-                      onPin={handleTogglePin}
-                      isPinned={pinnedIds.has(msg.id)}
-                      isCompact={isCompact}
-                    />
-                  </React.Fragment>
-                );
-              })}
-              <div ref={bottomRef} />
-              {showScrollBtn && (
-                <button
-                  onClick={() => {
-                    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-                    setShowScrollBtn(false);
-                  }}
-                  className="sticky bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-xs font-medium shadow-lg hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors z-10"
-                >
-                  {" "}
-                  ↓ Scroll to bottom
-                </button>
-              )}
-            </div>
+            <span className="text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
+              {memberCount} member{memberCount > 1 ? "s" : ""}
+            </span>
+          </div>
+          {channelDescription && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 max-w-[400px]">
+              {channelDescription}
+            </p>
           )}
         </div>
 
-        {pendingImages.length > 0 && (
-          <div className="flex gap-2 flex-wrap px-4 pb-2">
-            {pendingImages.map((img, i) => (
-              <div key={img.localUrl} className="relative group">
-                <img
-                  src={img.localUrl}
-                  alt=""
-                  className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${img.remoteUrl ? "opacity-100" : "opacity-60"}`}
-                />
-                {!img.remoteUrl && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
-                    <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        {/* Discord-style Header Actions */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Bell Icon (Mute notifications) */}
+          <button
+            onClick={() => toast.info("Notification settings coming soon!")}
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+            title="Notification Settings"
+          >
+            <Bell className="size-4" />
+          </button>
+
+          {/* Pin Icon (Toggle Pinned Panel) */}
+          <button
+            onClick={() => setShowPinnedPanel((v) => !v)}
+            className={`transition-colors p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/60 relative ${
+              showPinnedPanel
+                ? "text-zinc-900 dark:text-zinc-50 bg-zinc-100 dark:bg-zinc-800"
+                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            }`}
+            title="Pinned Messages"
+          >
+            <Pin className={`size-4 ${showPinnedPanel ? "fill-current" : ""}`} />
+            {pinnedIds.size > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full size-3.5 flex items-center justify-center scale-90">
+                {pinnedIds.size}
+              </span>
+            )}
+          </button>
+
+          {/* Users Icon (Toggle Member Panel) */}
+          <button
+            onClick={() => setShowMemberPanel((v) => !v)}
+            className={`transition-colors p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/60 ${
+              showMemberPanel
+                ? "text-zinc-900 dark:text-zinc-50 bg-zinc-100 dark:bg-zinc-800"
+                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            }`}
+            title="Member List"
+          >
+            <Users className="size-4" />
+          </button>
+
+          {/* Search Button */}
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 text-xs text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300 transition-all w-32 sm:w-40 text-left justify-between"
+          >
+            <span>Search</span>
+            <Search className="size-3.5 text-zinc-400" />
+          </button>
+
+          <Separator orientation="vertical" className="h-4 mx-1" />
+
+          {/* Leave/Settings channel button */}
+          <LeaveChannelButton
+            channelId={channelId}
+            channelName={channelName}
+            isOwner={session?.user.id === ownerId || !ownerId}
+            channelDescription={channelDescription}
+          />
+        </div>
+      </header>
+
+      {/* Main Body content */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Messages layout */}
+        <div className="flex flex-col flex-1 min-w-0 relative">
+          {pinnedIds.size > 0 && (
+            <button
+              onClick={() => setShowPinnedPanel((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-xs text-zinc-500 shrink-0"
+            >
+              <Pin className="size-3 fill-zinc-400 text-zinc-400" />
+              <span>
+                {pinnedIds.size} pinned message{pinnedIds.size > 1 ? "s" : ""}
+              </span>
+            </button>
+          )}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto py-4"
+          >
+            {messages.length === 0 ? (
+              <EmptyState
+                channelName={channelName}
+                onFocusInput={() => textareaRef.current?.focus()}
+                onOpenInvite={() => setShowInviteDialog(true)}
+                onOpenPersonalize={() => setShowPersonalizeDialog(true)}
+                isOwner={session?.user.id === ownerId || !ownerId}
+              />
+            ) : (
+              <div className="space-y-1">
+                {hasMore && (
+                  <div className="flex justify-center py-3">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore}
+                      className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
+                    >
+                      {isLoadingMore && (
+                        <span className="size-3 border border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                      )}
+                      {isLoadingMore ? "Loading..." : "Load previous messages"}
+                    </button>
                   </div>
                 )}
-                {img.remoteUrl && (
+                {messages.map((msg, index) => {
+                  const prev = messages[index - 1];
+
+                  const isSameUser = prev && prev.userId === msg.userId;
+                  const isTimeClose =
+                    prev &&
+                    new Date(msg.createdAt).getTime() -
+                      new Date(prev.createdAt).getTime() <
+                      120000;
+
+                  const showDateSeparator =
+                    !prev ||
+                    new Date(msg.createdAt).toDateString() !==
+                      new Date(prev.createdAt).toDateString();
+
+                  const isCompact =
+                    isSameUser && isTimeClose && !showDateSeparator;
+
+                  return (
+                    <React.Fragment key={msg.id}>
+                      {showDateSeparator && (
+                        <div className="flex items-center gap-3 px-4 py-2">
+                          <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                          <span className="text-xs text-zinc-400 font-medium shrink-0">
+                            {formatDateLabel(new Date(msg.createdAt))}
+                          </span>
+                          <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                        </div>
+                      )}
+                      <MessageItem
+                        key={msg.id}
+                        message={msg}
+                        currentUserId={session?.user.id!}
+                        onEdit={handleEditMessage}
+                        onDelete={handleDeleteMessage}
+                        onReaction={handleToggleReaction}
+                        onReply={handleReply}
+                        onPin={handleTogglePin}
+                        isPinned={pinnedIds.has(msg.id)}
+                        isCompact={isCompact}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+                <div ref={bottomRef} />
+                {showScrollBtn && (
                   <button
                     onClick={() => {
-                      URL.revokeObjectURL(img.localUrl);
-                      if (img.key) {
-                        deleteUploadedFiles([img]);
-                      }
-                      setPendingImages((prev) =>
-                        prev.filter((_, idx) => idx !== i),
-                      );
+                      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                      setShowScrollBtn(false);
                     }}
-                    className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                    className="sticky bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 text-xs font-medium shadow-lg hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors z-10"
                   >
-                    ×
+                    {" "}
+                    ↓ Scroll to bottom
                   </button>
                 )}
               </div>
-            ))}
+            )}
           </div>
-        )}
 
-        {replyingTo && (
-          <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 text-xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <Reply className="size-3 text-zinc-400 shrink-0" />
-              <span className="text-zinc-500">Replying to</span>
-              <span className="text-zinc-400 truncate">
-                {replyingTo.content ?? "📷 Image"}
-              </span>
-            </div>
-            <button
-              onClick={() => setReplyingTo(null)}
-              className="shrink-0 ml-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        )}
-
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 relative">
-          {mentionQuery && filteredMembers.length > 0 && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 mx-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-20">
-              {filteredMembers.map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => handleMentionSelect(member)}
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm text-left"
-                >
-                  <Avatar className="size-6 shrink-0">
-                    <AvatarImage src={member.image ?? ""} />
-                    <AvatarFallback className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">
-                      {getInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>{" "}
-                  <span className="font-medium text-blue-500 dark:text-blue-400">
-                    @{member.username}{" "}
-                  </span>
-                  <span className="text-xs text-zinc-400 truncate">
-                    {member.name}
-                  </span>
-                </button>
+          {pendingImages.length > 0 && (
+            <div className="flex gap-2 flex-wrap px-4 pb-2">
+              {pendingImages.map((img, i) => (
+                <div key={img.localUrl} className="relative group">
+                  <img
+                    src={img.localUrl}
+                    alt=""
+                    className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${img.remoteUrl ? "opacity-100" : "opacity-60"}`}
+                  />
+                  {!img.remoteUrl && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                      <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {img.remoteUrl && (
+                    <button
+                      onClick={() => {
+                        URL.revokeObjectURL(img.localUrl);
+                        if (img.key) {
+                          deleteUploadedFiles([img]);
+                        }
+                        setPendingImages((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        );
+                      }}
+                      className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
-          <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/png, image/jpeg, image/webp"
-              multiple
-              className="hidden"
-              onChange={handleImageSelect}
-            />
-            <button
-              type="button"
-              className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={
-                pendingImages.length >= MAX_IMAGE_PER_MESSAGE ||
-                isUploadingImages
-              }
-            >
-              <ImageIcon className="size-4" />
-            </button>
-            <textarea
-              value={input}
-              ref={textareaRef}
-              onChange={(e) => {
-                const val = e.target.value;
-                setInput(val);
 
-                const cursor = e.target.selectionStart ?? val.length;
-                const textBeforeCursor = val.slice(0, cursor);
-                const match = textBeforeCursor.match(/@(\w*)$/);
-
-                if (match) {
-                  setMentionQuery(match[1]);
-                } else {
-                  setMentionQuery(null);
-                }
-              }}
-              rows={1}
-              onKeyDown={handleKeyDown}
-              placeholder={`Message ${channelName}`}
-              disabled={isSending}
-              className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
-              style={{ fieldSizing: "content" }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={
-                (!input.trim() && pendingImages.length === 0) ||
-                !pendingImages.every((img) => img.remoteUrl !== null) ||
-                isUploadingImages
-              }
-              className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
-            >
-              <Send className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-      {showPinnedPanel && (
-        <div className="w-72 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-2">
-              <Pin className="size-4 text-zinc-500" />
-              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                Pinned Messages
-              </span>
+          {replyingTo && (
+            <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <Reply className="size-3 text-zinc-400 shrink-0" />
+                <span className="text-zinc-500">Replying to</span>
+                <span className="text-zinc-400 truncate">
+                  {replyingTo.content ?? "📷 Image"}
+                </span>
+              </div>
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="shrink-0 ml-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
-            <button
-              onClick={() => setShowPinnedPanel(false)}
-              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
+          )}
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {pinnedMessages.length === 0 ? (
-              <p className="text-xs text-zinc-400 text-center py-8">
-                Loading...
-              </p>
-            ) : (
-              pinnedMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700"
-                >
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                    {msg.user.name}
-                  </span>
-                  {msg.content && (
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-all">
-                      {msg.content}
-                    </p>
-                  )}
-                  {msg.images.length > 0 && (
-                    <span className="text-xs text-zinc-400">
-                      📷 {msg.images.length} image(s)
+          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 relative">
+            {mentionQuery && filteredMembers.length > 0 && (
+              <div className="absolute bottom-full left-0 right-0 mb-1 mx-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden z-20">
+                {filteredMembers.map((member) => (
+                  <button
+                    key={member.id}
+                    onClick={() => handleMentionSelect(member)}
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm text-left"
+                  >
+                    <Avatar className="size-6 shrink-0">
+                      <AvatarImage src={member.image ?? ""} />
+                      <AvatarFallback className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">
+                        {getInitials(member.name)}
+                      </AvatarFallback>
+                    </Avatar>{" "}
+                    <span className="font-medium text-blue-500 dark:text-blue-400">
+                      @{member.username}{" "}
                     </span>
-                  )}
-                </div>
-              ))
+                    <span className="text-xs text-zinc-400 truncate">
+                      {member.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
+            <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png, image/jpeg, image/webp"
+                multiple
+                className="hidden"
+                onChange={handleImageSelect}
+              />
+              <button
+                type="button"
+                className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={
+                  pendingImages.length >= MAX_IMAGE_PER_MESSAGE ||
+                  isUploadingImages
+                }
+              >
+                <ImageIcon className="size-4" />
+              </button>
+              <textarea
+                value={input}
+                ref={textareaRef}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInput(val);
+
+                  const cursor = e.target.selectionStart ?? val.length;
+                  const textBeforeCursor = val.slice(0, cursor);
+                  const match = textBeforeCursor.match(/@(\w*)$/);
+
+                  if (match) {
+                    setMentionQuery(match[1]);
+                  } else {
+                    setMentionQuery(null);
+                  }
+                }}
+                rows={1}
+                onKeyDown={handleKeyDown}
+                placeholder={`Message ${channelName}`}
+                disabled={isSending}
+                className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
+                style={{ fieldSizing: "content" }}
+              />
+              <button
+                onClick={handleSend}
+                disabled={
+                  (!input.trim() && pendingImages.length === 0) ||
+                  !pendingImages.every((img) => img.remoteUrl !== null) ||
+                  isUploadingImages
+                }
+                className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
+              >
+                <Send className="size-3.5" />
+              </button>
+            </div>
           </div>
         </div>
-      )}
+
+        {/* Pinned Messages Sidebar */}
+        {showPinnedPanel && (
+          <div className="w-72 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden bg-white dark:bg-zinc-950">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Pin className="size-4 text-zinc-500" />
+                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  Pinned Messages
+                </span>
+              </div>
+              <button
+                onClick={() => setShowPinnedPanel(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {pinnedMessages.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-8">
+                  Loading...
+                </p>
+              ) : (
+                pinnedMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700"
+                  >
+                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                      {msg.user.name}
+                    </span>
+                    {msg.content && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-all">
+                        {msg.content}
+                      </p>
+                    )}
+                    {msg.images.length > 0 && (
+                      <span className="text-xs text-zinc-400">
+                        📷 {msg.images.length} image(s)
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Members Sidebar (Togglable) */}
+        {showMemberPanel && (
+          <ChannelMemberPanel
+            members={members}
+            currentUserId={currentUserId}
+          />
+        )}
+      </div>
+
+      <InviteMemberDialog
+        open={showInviteDialog}
+        onOpenChange={setShowInviteDialog}
+        channelId={channelId}
+        channelName={channelName}
+        currentMembers={members}
+        onMemberAdded={() => router.refresh()}
+      />
+      <PersonalizeChannelDialog
+        open={showPersonalizeDialog}
+        onOpenChange={setShowPersonalizeDialog}
+        channelId={channelId}
+        channelName={channelName}
+        channelDescription={channelDescription}
+      />
     </div>
   );
 }
