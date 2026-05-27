@@ -934,7 +934,6 @@ export function ChannelView({
     <div className="flex flex-col flex-1 min-h-0 w-full overflow-hidden">
       {/* Discord-style Header */}
       <header className="flex items-center gap-3 px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md shrink-0">
-        <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="h-4" />
         <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-1.5">

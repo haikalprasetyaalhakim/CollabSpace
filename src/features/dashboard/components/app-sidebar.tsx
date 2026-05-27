@@ -26,8 +26,8 @@ export default function AppSidebar({
 }: Props) {
   return (
     <Sidebar
-      collapsible="icon"
-      className="md:left-[72px]! border-l border-zinc-200/50 dark:border-zinc-800/50"
+      collapsible="none"
+      className="border-r border-zinc-200/50 dark:border-zinc-800/50"
     >
       <SidebarWorkspaceHeader activeWorkspace={activeWorkspace} />
 

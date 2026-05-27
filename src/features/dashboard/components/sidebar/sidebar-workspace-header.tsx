@@ -12,7 +12,6 @@ import {
   SidebarHeader,
   SidebarMenuButton,
   SidebarSeparator,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getInitials } from "@/lib/utils";
@@ -105,7 +104,6 @@ export default function SidebarWorkspaceHeader({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <SidebarTrigger className="shrink-0" />
             </>
           )}
         </div>
