@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Hash } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import React, { useState, useTransition } from "react";
 import { createChannel } from "../actions/create-channel";
 import { toast } from "sonner";
@@ -25,6 +25,9 @@ export default function CreateChannelDialog({ open, onOpenChange }: Props) {
   const [description, setDescription] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const params = useParams();
+
+  const workspaceId = params.workspaceId as string;
 
   const formattedName = name.trim().toLowerCase().replace(/\s+/g, "-");
 
@@ -33,7 +36,7 @@ export default function CreateChannelDialog({ open, onOpenChange }: Props) {
     if (!name.trim()) return;
 
     startTransition(async () => {
-      const result = await createChannel({ name, description });
+      const result = await createChannel({ name, description }, workspaceId);
 
       if (!result.success) {
         toast.error(result.error);
@@ -44,7 +47,7 @@ export default function CreateChannelDialog({ open, onOpenChange }: Props) {
       onOpenChange(false);
       setName("");
       setDescription("");
-      router.push(`/channels/${result.data!.id}`);
+      router.push(`/workspaces/${workspaceId}/channels/${result.data!.id}`);
     });
   };
 
@@ -58,7 +61,10 @@ export default function CreateChannelDialog({ open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5 mt-1 w-full overflow-hidden">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-5 mt-1 w-full overflow-hidden"
+        >
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
               Channel name <span className="text-red-500">*</span>

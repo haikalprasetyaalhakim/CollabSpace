@@ -8,7 +8,7 @@ import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 type Props = {
-  params: Promise<{ channelId: string }>;
+  params: Promise<{ workspaceId: string; channelId: string }>;
   searchParams: Promise<{ highlight?: string }>;
 };
 
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params, searchParams }: Props) {
   const session = await serverCompReqAuth();
 
-  const { channelId } = await params;
+  const { channelId, workspaceId } = await params;
   const { highlight } = await searchParams;
 
   const [channel, initialMessages, members, membership, initialPinnedIds] =
@@ -70,7 +70,7 @@ export default async function Page({ params, searchParams }: Props) {
     ]);
 
   if (!channel) notFound();
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect(`/workspaces/${workspaceId}`);
 
   return (
     <SidebarInset className="h-svh overflow-hidden">

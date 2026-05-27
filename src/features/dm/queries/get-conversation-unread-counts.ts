@@ -2,9 +2,9 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 
-export async function getConversationUnreadCounts(): Promise<
-  Record<string, number>
-> {
+export async function getConversationUnreadCounts(
+  workspaceId: string,
+): Promise<Record<string, number>> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -14,6 +14,7 @@ export async function getConversationUnreadCounts(): Promise<
 
   const conversations = await prisma.conversation.findMany({
     where: {
+      workspaceId,
       OR: [{ memberOneId: userId }, { memberTwoId: userId }],
     },
     select: { id: true },

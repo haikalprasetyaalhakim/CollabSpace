@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 
 export async function getOrCreateConversation(
   recipientId: string,
+  workspaceId: string,
 ): Promise<ActionResult<{ conversationId: string }>> {
   try {
     const session = await auth.api.getSession({
@@ -29,6 +30,7 @@ export async function getOrCreateConversation(
 
     const existing = await prisma.conversation.findFirst({
       where: {
+        workspaceId,
         OR: [
           {
             memberOneId: currentUserId,
@@ -48,6 +50,7 @@ export async function getOrCreateConversation(
 
     const conversation = await prisma.conversation.create({
       data: {
+        workspaceId,
         memberOneId: currentUserId,
         memberTwoId: recipientId,
       },

@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 
-export async function getUserChannels() {
+export async function getUserChannels(workspaceId: string) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -10,7 +10,12 @@ export async function getUserChannels() {
   if (!session) return [];
 
   const memberships = await prisma.channelMember.findMany({
-    where: { userId: session.user.id },
+    where: {
+      userId: session.user.id,
+      channel: {
+        workspaceId: workspaceId,
+      },
+    },
     include: {
       channel: {
         select: { id: true, name: true },

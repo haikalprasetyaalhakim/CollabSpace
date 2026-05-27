@@ -9,14 +9,14 @@ import { getInitials } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
 type Props = {
-  params: Promise<{ conversationId: string }>;
+  params: Promise<{ workspaceId: string; conversationId: string }>;
   searchParams: Promise<{ highlight?: string }>;
 };
 
 export default async function Page({ params, searchParams }: Props) {
   const session = await serverCompReqAuth();
 
-  const { conversationId } = await params;
+  const { workspaceId, conversationId } = await params;
   const { highlight } = await searchParams;
 
   const [conversation, initialMessages] = await Promise.all([
@@ -37,7 +37,7 @@ export default async function Page({ params, searchParams }: Props) {
     getDmMessages(conversationId),
   ]);
 
-  if (!conversation) redirect("/dashboard");
+  if (!conversation) redirect(`/workspaces/${workspaceId}`);
 
   const otherUser =
     conversation.memberOneId === session.user.id

@@ -6,10 +6,13 @@ import { ActionResult } from "@/types/action";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
-export async function createChannel(data: {
-  name: string;
-  description?: string;
-}): Promise<ActionResult<{ id: string }>> {
+export async function createChannel(
+  data: {
+    name: string;
+    description?: string;
+  },
+  workspaceId: string,
+): Promise<ActionResult<{ id: string }>> {
   try {
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -21,7 +24,7 @@ export async function createChannel(data: {
     if (name.length > 80) return { success: false, error: "Name too long." };
 
     const existing = await prisma.channel.findFirst({
-      where: { name },
+      where: { name, workspaceId },
     });
     if (existing) return { success: false, error: `#${name} already exists.` };
 
@@ -31,6 +34,7 @@ export async function createChannel(data: {
           name,
           description: data.description?.trim() || null,
           ownerId: session.user.id,
+          workspaceId,
         },
       });
 

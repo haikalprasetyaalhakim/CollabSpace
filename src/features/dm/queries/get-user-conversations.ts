@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 
-export async function getUserConversations() {
+export async function getUserConversations(workspaceId: string) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -10,6 +10,7 @@ export async function getUserConversations() {
 
   const conversations = await prisma.conversation.findMany({
     where: {
+      workspaceId,
       OR: [
         {
           memberOneId: session.user.id,

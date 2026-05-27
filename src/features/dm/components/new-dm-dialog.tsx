@@ -13,7 +13,7 @@ import { statusColor } from "@/constants";
 import { UserStatus } from "@/generated/prisma/enums";
 import { getInitials } from "@/lib/utils";
 import { Loader2, Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { getOrCreateConversation } from "../actions/get-or-create-conversation";
@@ -35,12 +35,15 @@ export default function NewDmDialog({ open, onOpenChange }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState("");
   const router = useRouter();
+  const params = useParams();
+
+  const workspaceId = params.workspaceId as string;
 
   useEffect(() => {
     if (!open) return;
 
     setIsLoading(true);
-    fetch("/api/users")
+    fetch(`/api/users?workspaceId=${workspaceId}`)
       .then((res) => res.json())
       .then(setUsers)
       .catch(() => toast.error("Failed to load users."))
@@ -96,6 +99,7 @@ export default function NewDmDialog({ open, onOpenChange }: Props) {
                 user={user}
                 onSelect={() => onOpenChange(false)}
                 router={router}
+                workspaceId={workspaceId}
               />
             ))
           )}
@@ -109,22 +113,26 @@ function UserRow({
   user,
   onSelect,
   router,
+  workspaceId,
 }: {
   user: User;
   onSelect: () => void;
   router: ReturnType<typeof useRouter>;
+  workspaceId: string;
 }) {
   const [isPending, startTransition] = useTransition();
 
   const handleClick = () => {
     startTransition(async () => {
-      const result = await getOrCreateConversation(user.id);
+      const result = await getOrCreateConversation(user.id, workspaceId);
       if (!result.success) {
         toast.error(result.error);
         return;
       }
       onSelect();
-      router.push(`/dm/${result.data!.conversationId}`);
+      router.push(
+        `/workspaces/${workspaceId}/dm/${result.data?.conversationId}`,
+      );
     });
   };
 

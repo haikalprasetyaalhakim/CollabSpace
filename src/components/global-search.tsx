@@ -3,7 +3,7 @@
 import { useSearch } from "@/hooks/use-search";
 import { getInitials } from "@/lib/utils";
 import { Hash, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
@@ -16,43 +16,13 @@ import {
   CommandList,
 } from "./ui/command";
 
-const MOCK_CHANNELS = [
-  { id: "1", name: "general" },
-  { id: "2", name: "random" },
-  { id: "3", name: "development" },
-];
-
-const MOCK_MESSAGES = [
-  {
-    id: "msg-1",
-    channelId: "1",
-    channelName: "general",
-    content: "Kita akan mulai deploying collabspace sore ini guys!",
-    createdAt: "2026-05-21T10:00:00Z",
-    user: { name: "Alice Walker", image: "" },
-  },
-  {
-    id: "msg-2",
-    channelId: "3",
-    channelName: "development",
-    content: "Pastikan untuk running bunx prisma db push terlebih dahulu.",
-    createdAt: "2026-05-21T09:30:00Z",
-    user: { name: "Bob Smith", image: "" },
-  },
-];
-const MOCK_DMS = [
-  {
-    id: "dm-1",
-    conversationId: "conv-123",
-    content: "Halo, progress perbaikan SSE heartbeat sudah dideploy ya.",
-    createdAt: "2026-05-21T08:15:00Z",
-    user: { name: "Charlie Brown", image: "" },
-  },
-];
-
 export default function GlobalSearch() {
   const { open, setOpen } = useSearch();
   const router = useRouter();
+  const params = useParams();
+
+  const workspaceId = params.workspaceId as string;
+
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<{
@@ -87,7 +57,9 @@ export default function GlobalSearch() {
 
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(
+          `/api/search?q=${encodeURIComponent(query)}&workspaceId=${workspaceId}`,
+        );
         const data = await res.json();
         setResults({
           channels: data.channels ?? [],
@@ -158,7 +130,11 @@ export default function GlobalSearch() {
                     <CommandItem
                       key={channel.id}
                       className="flex items-center gap-2 cursor-pointer p-2 rounded-lg"
-                      onSelect={() => handleSelect(`/channels/${channel.id}`)}
+                      onSelect={() =>
+                        handleSelect(
+                          `/workspaces/${workspaceId}/channels/${channel.id}`,
+                        )
+                      }
                     >
                       <Hash className="size-4 text-zinc-500 shrink-0" />
                       <span className="font-medium text-zinc-800 dark:text-zinc-200">
@@ -176,7 +152,7 @@ export default function GlobalSearch() {
                       key={message.id}
                       onSelect={() => {
                         handleSelect(
-                          `/channels/${message.channelId}?highlight=${message.id}`,
+                          `/workspaces/${workspaceId}/channels/${message.channelId}?highlight=${message.id}`,
                         );
                       }}
                       className="flex items-center gap-2 cursor-pointer p-2 rounded-lg"
@@ -234,7 +210,7 @@ export default function GlobalSearch() {
                       key={dm.id}
                       onSelect={() => {
                         handleSelect(
-                          `/dm/${dm.conversationId}?highlight=${dm.id}`,
+                          `/workspaces/${workspaceId}/dm/${dm.conversationId}?highlight=${dm.id}`,
                         );
                       }}
                       className="flex items-center gap-2 cursor-pointer p-2 rounded-lg"

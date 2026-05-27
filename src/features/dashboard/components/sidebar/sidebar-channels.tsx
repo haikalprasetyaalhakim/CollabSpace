@@ -14,17 +14,20 @@ import CreateChannelDialog from "@/features/channels/components/create-channel-d
 import { useUnread } from "@/hooks/use-unread";
 import { Hash, Plus } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useState } from "react";
 
 type Channel = { id: string; name: string };
 
 export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const pathname = usePathname();
+  const params = useParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
 
   const { channelUnread, mentionedChannels } = useUnread();
+
+  const workspaceId = params.workspaceId as string;
 
   return (
     <>
@@ -48,13 +51,16 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
                   <SidebarMenuButton
                     asChild
                     tooltip={`#${channel.name}`}
-                    isActive={pathname === `/channels/${channel.id}`}
+                    isActive={
+                      pathname ===
+                      `/workspaces/${workspaceId}/channels/${channel.id}`
+                    }
                   >
                     <Link
                       href={
                         firstMentionId
-                          ? `/channels/${channel.id}?highlight=${firstMentionId}`
-                          : `/channels/${channel.id}`
+                          ? `/workspaces/${workspaceId}/channels/${channel.id}?highlight=${firstMentionId}`
+                          : `/workspaces/${workspaceId}/channels/${channel.id}`
                       }
                       className="flex items-center justify-between w-full gap-2"
                     >

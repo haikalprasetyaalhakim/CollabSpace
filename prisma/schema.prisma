@@ -41,6 +41,8 @@ model User {
   directMessageReactions DirectMessageReaction[]
   pinnedMessages         PinnedMessage[]         @relation("PinnedByUser")
   mentions               Mention[]
+  ownedWorkspaces        Workspace[]             @relation("WorkspaceOwner")
+  workspaceMemberships   WorkspaceMember[]
 
   @@unique([email])
   @@unique([username])
@@ -101,6 +103,8 @@ model Channel {
   description    String?
   ownerId        String?
   owner          User?           @relation("ChannelOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  workspaceId    String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   channelMembers ChannelMember[]
@@ -138,8 +142,10 @@ model Message {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
 
   memberOneId String
   memberOne   User   @relation("ConversationMemberOne", fields: [memberOneId], references: [id], onDelete: Cascade)
@@ -150,7 +156,7 @@ model Conversation {
   directMessaages   DirectMessage[]
   conversationReads ConversationRead[]
 
-  @@unique([memberOneId, memberTwoId])
+  @@unique([memberOneId, memberTwoId, workspaceId])
 }
 
 model DirectMessage {
@@ -245,4 +251,33 @@ model Mention {
 
   @@unique([userId, messageId])
   @@map("mention")
+}
+
+model Workspace {
+  id            String            @id @default(cuid())
+  name          String
+  image         String?
+  imageKey      String?
+  inviteCode    String            @unique
+  ownerId       String
+  owner         User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  members       WorkspaceMember[]
+  channels      Channel[]
+  conversations Conversation[]
+
+  @@map("workspace")
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        String    @default("member")
+  joinedAt    DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@map("workspace_member")
 }

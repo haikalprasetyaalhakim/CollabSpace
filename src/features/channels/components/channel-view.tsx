@@ -974,7 +974,9 @@ export function ChannelView({
             }`}
             title="Pinned Messages"
           >
-            <Pin className={`size-4 ${showPinnedPanel ? "fill-current" : ""}`} />
+            <Pin
+              className={`size-4 ${showPinnedPanel ? "fill-current" : ""}`}
+            />
             {pinnedIds.size > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full size-3.5 flex items-center justify-center scale-90">
                 {pinnedIds.size}
@@ -1307,12 +1309,8 @@ export function ChannelView({
           </div>
         )}
 
-        {/* Members Sidebar (Togglable) */}
         {showMemberPanel && (
-          <ChannelMemberPanel
-            members={members}
-            currentUserId={currentUserId}
-          />
+          <ChannelMemberPanel members={members} currentUserId={currentUserId} />
         )}
       </div>
 

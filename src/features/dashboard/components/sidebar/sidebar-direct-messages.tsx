@@ -18,7 +18,7 @@ import { useUnread } from "@/hooks/use-unread";
 import { getInitials } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { useState } from "react";
 
 type Props = {
@@ -27,10 +27,12 @@ type Props = {
 
 export default function SidebarDirectMessages({ conversations }: Props) {
   const pathname = usePathname();
+  const params = useParams();
   const { onlineUserIds, userStatuses } = usePresence();
   const { conversationUnread, mentionedConversations } = useUnread();
 
   const [newDmOpen, setNewDmOpen] = useState(false);
+  const workspaceId = params.workspaceId as string;
 
   return (
     <>
@@ -54,13 +56,15 @@ export default function SidebarDirectMessages({ conversations }: Props) {
                   <SidebarMenuButton
                     asChild
                     tooltip={conv.otherUser.name}
-                    isActive={pathname === `/dm/${conv.id}`}
+                    isActive={
+                      pathname === `/workspaces/${workspaceId}/dm/${conv.id}`
+                    }
                   >
                     <Link
                       href={
                         firstMentionId
-                          ? `/dm/${conv.id}?highlight=${firstMentionId}`
-                          : `/dm/${conv.id}`
+                          ? `/workspaces/${workspaceId}/dm/${conv.id}?highlight=${firstMentionId}`
+                          : `/workspaces/${workspaceId}/dm/${conv.id}`
                       }
                       className="flex items-center justify-between w-full gap-2"
                     >

@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const q = request.nextUrl.searchParams.get("q")?.trim();
+  const workspaceId = request.nextUrl.searchParams.get("workspaceId");
+
+  if (!workspaceId)
+    return Response.json({ error: "workspaceId is required" }, { status: 400 });
 
   if (!q || q.length < 2)
     return Response.json({ channels: [], messages: [], dms: [] });
@@ -20,6 +24,7 @@ export async function GET(request: NextRequest) {
   const [channels, messages, dms] = await Promise.all([
     prisma.channel.findMany({
       where: {
+        workspaceId,
         name: { contains: q, mode: "insensitive" },
         channelMembers: { some: { userId } },
       },
@@ -31,6 +36,7 @@ export async function GET(request: NextRequest) {
       where: {
         content: { contains: q, mode: "insensitive" },
         channel: {
+          workspaceId,
           channelMembers: { some: { userId } },
         },
       },
@@ -50,6 +56,7 @@ export async function GET(request: NextRequest) {
       where: {
         content: { contains: q, mode: "insensitive" },
         conversation: {
+          workspaceId,
           OR: [{ memberOneId: userId }, { memberTwoId: userId }],
         },
       },

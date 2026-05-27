@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { inviteToChannel } from "@/features/channels/actions/invite-to-channel";
+import { useParams } from "next/navigation";
 
 type Props = {
   open: boolean;
@@ -45,10 +46,13 @@ export default function InviteMemberDialog({
   const [invitedIds, setInviteIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
 
+  const params = useParams();
+  const workspaceId = params.workspaceId as string;
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || !workspaceId) return;
     setIsLoading(true);
-    fetch("/api/users")
+    fetch(`/api/users?workspaceId=${workspaceId}`)
       .then((res) => res.json())
       .then((data) => {
         const filtered = data.filter(
@@ -58,7 +62,7 @@ export default function InviteMemberDialog({
       })
       .catch(() => toast.error("Failed to load users."))
       .finally(() => setIsLoading(false));
-  }, [open, currentMembers]);
+  }, [open, currentMembers, workspaceId]);
 
   const filteredUsers = users.filter((u: any) => {
     const term = search.trim().toLowerCase();
