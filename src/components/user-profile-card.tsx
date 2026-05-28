@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { statusColor } from "@/constants";
 import { usePresence } from "@/hooks/use-presence";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { UserStatus } from "@/generated/prisma/enums";
 import { Button } from "./ui/button";
 import { MessageSquare } from "lucide-react";
@@ -35,6 +35,8 @@ export default function UserProfileCard({
   const { onlineUserIds, userStatuses } = usePresence();
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const params = useParams();
+  const workspaceId = params?.workspaceId as string;
 
   const isOnline = onlineUserIds.has(userId);
   const status = (userStatuses.get(userId) ?? "offline") as UserStatus;
@@ -42,7 +44,11 @@ export default function UserProfileCard({
 
   const handleMessage = () => {
     startTransition(async () => {
-      const result = await getOrCreateConversation(userId);
+      if (!workspaceId) {
+        toast.error("Workspace ID not found");
+        return;
+      }
+      const result = await getOrCreateConversation(userId, workspaceId);
       if (!result.success) {
         toast.error(result.error);
         return;

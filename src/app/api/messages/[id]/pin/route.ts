@@ -4,7 +4,7 @@ import { broadcastToChannel } from "@/lib/sse";
 import { headers } from "next/headers";
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth.api.getSession({

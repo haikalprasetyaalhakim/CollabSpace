@@ -1,4 +1,3 @@
-import { betterFetch } from "better-auth/react";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "./lib/auth";
 

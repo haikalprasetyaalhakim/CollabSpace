@@ -10,7 +10,7 @@ import { getOrCreateConversation } from "@/features/dm/actions/get-or-create-con
 import { UserStatus } from "@/generated/prisma/enums";
 import { getInitials } from "@/lib/utils";
 import { MessageSquare } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
@@ -88,10 +88,16 @@ type MemberRowProps = {
 function MemberRow({ member, isCurrentUser }: MemberRowProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const params = useParams();
+  const workspaceId = params?.workspaceId as string;
 
   const handleMessage = () => {
     startTransition(async () => {
-      const result = await getOrCreateConversation(member.id);
+      if (!workspaceId) {
+        toast.error("Workspace ID not found");
+        return;
+      }
+      const result = await getOrCreateConversation(member.id, workspaceId);
       if (!result.success) {
         toast.error(result.error);
         return;

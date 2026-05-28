@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import React, { SubmitEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 export default function UsernameForm() {
@@ -10,7 +10,7 @@ export default function UsernameForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 

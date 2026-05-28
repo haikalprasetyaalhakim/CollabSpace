@@ -18,6 +18,32 @@ async function main() {
     return;
   }
 
+  let workspace = await prisma.workspace.findFirst();
+  if (!workspace) {
+    workspace = await prisma.workspace.create({
+      data: {
+        name: "General Workspace",
+        inviteCode: "GENERAL123",
+        ownerId: user.id,
+      },
+    });
+
+    await prisma.workspaceMember.upsert({
+      where: {
+        workspaceId_userId: {
+          workspaceId: workspace.id,
+          userId: user.id,
+        },
+      },
+      update: {},
+      create: {
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: "owner",
+      },
+    });
+  }
+
   const channelNames = [
     "general",
     "engineering",
@@ -34,6 +60,7 @@ async function main() {
         id: name,
         name,
         description: `${name} channel`,
+        workspaceId: workspace.id,
       },
     });
 
