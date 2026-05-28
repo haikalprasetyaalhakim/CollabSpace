@@ -48,6 +48,9 @@ export default async function Layout({
       id: true,
       name: true,
       inviteCode: true,
+      ownerId: true,
+      image: true,
+      imageKey: true,
     },
   });
 

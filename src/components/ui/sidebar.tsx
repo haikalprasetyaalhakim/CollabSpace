@@ -105,8 +105,8 @@ function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen, setOpenMobile]);
+    return isMobile ? setOpenMobile((open) => !open) : undefined;
+  }, [isMobile, setOpenMobile]);
 
   const startResizing = React.useCallback(
     (mouseDownEvent: React.MouseEvent) => {
@@ -155,7 +155,7 @@ function SidebarProvider({
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
-  const state = open ? "expanded" : "collapsed";
+  const state = isMobile ? (openMobile ? "expanded" : "collapsed") : "expanded";
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({

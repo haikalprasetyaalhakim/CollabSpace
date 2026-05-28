@@ -14,7 +14,14 @@ import { ConversationWithUser } from "@/features/dm/queries/get-user-conversatio
 type Channel = { id: string; name: string };
 
 type Props = {
-  activeWorkspace: { id: string; name: string; inviteCode: string } | null;
+  activeWorkspace: {
+    id: string;
+    name: string;
+    inviteCode: string;
+    ownerId: string;
+    image: string | null;
+    imageKey: string | null;
+  } | null;
   channels: Channel[];
   conversations: ConversationWithUser[];
 };

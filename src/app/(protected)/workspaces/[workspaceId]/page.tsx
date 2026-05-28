@@ -1,14 +1,14 @@
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { serverCompReqAuth } from "@/lib/server-comp-req-auth";
-import NewChannelButton from "../../dashboard/_components/new-channel-button";
-import { Hash, MessageSquare } from "lucide-react";
+import { SidebarInset } from "@/components/ui/sidebar";
+import { statusColor } from "@/constants";
 import { getUserChannels } from "@/features/channels/queries/get-user-channels";
 import prisma from "@/lib/prisma";
-import Link from "next/link";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { serverCompReqAuth } from "@/lib/server-comp-req-auth";
 import { getInitials } from "@/lib/utils";
-import { statusColor } from "@/constants";
+import { Hash, MessageSquare } from "lucide-react";
+import Link from "next/link";
+import NewChannelButton from "../../dashboard/_components/new-channel-button";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -51,7 +51,6 @@ export default async function Page({ params }: Props) {
   return (
     <SidebarInset>
       <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <SidebarTrigger />
         <Separator orientation="vertical" />
         <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
           Dashboard

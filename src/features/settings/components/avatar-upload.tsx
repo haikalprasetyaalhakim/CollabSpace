@@ -3,13 +3,14 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { Camera } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 type AvatarUploadProps = {
   currentImage?: string | null;
   fallback: string;
   onUploadComplete: (url: string, key: string) => void;
+  onUploadingChange?: (isUploading: boolean) => void;
 };
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -19,6 +20,7 @@ export default function AvatarUpload({
   currentImage,
   fallback,
   onUploadComplete,
+  onUploadingChange,
 }: AvatarUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -34,6 +36,10 @@ export default function AvatarUpload({
       toast.error("Upload failed: " + err.message);
     },
   });
+
+  useEffect(() => {
+    onUploadingChange?.(isUploading);
+  }, [isUploading, onUploadingChange]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
