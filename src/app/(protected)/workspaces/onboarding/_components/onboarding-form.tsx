@@ -5,18 +5,26 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createWorkspace } from "@/features/workspaces/actions/create-workspace";
 import { joinWorkspace } from "@/features/workspaces/actions/join-workspace";
-import { PlusCircle, Sparkles, UserPlus } from "lucide-react";
+import { PlusCircle, Sparkles, UserPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-export default function WorkspaceOnboardingForm() {
+type Props = {
+  hasWorkspace?: boolean;
+  defaultWorkspaceId?: string | undefined;
+};
+
+export default function WorkspaceOnboardingForm({
+  hasWorkspace,
+  defaultWorkspaceId,
+}: Props) {
   const [workspaceName, setWorkspaceName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [isLoading, startTransition] = useTransition();
   const router = useRouter();
 
-  const handleCreate = async (e: React.SubmitEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!workspaceName.trim()) return;
 
@@ -30,7 +38,7 @@ export default function WorkspaceOnboardingForm() {
     });
   };
 
-  const handleJoin = async (e: React.SubmitEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
 
@@ -45,7 +53,17 @@ export default function WorkspaceOnboardingForm() {
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl shadow-xl overflow-hidden p-6 transition-all duration-300">
+    <div className="relative rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl shadow-xl overflow-hidden p-6 transition-all duration-300">
+      {hasWorkspace && defaultWorkspaceId && (
+        <button
+          type="button"
+          onClick={() => router.push(`/workspaces/${defaultWorkspaceId}`)}
+          className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+          aria-label="Back to workspace"
+        >
+          <X className="size-4" />
+        </button>
+      )}
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center size-12 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 mb-3 shadow-md">
           <Sparkles className="size-5 animate-pulse" />
