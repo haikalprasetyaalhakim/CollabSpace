@@ -258,6 +258,11 @@ model Workspace {
   name          String
   image         String?
   imageKey      String?
+  banner        String?
+  bannerKey     String?
+  description   String?
+  isPrivate     Boolean           @default(true)
+  traits        String[]          @default([])
   inviteCode    String            @unique
   ownerId       String
   owner         User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])

@@ -1,11 +1,32 @@
 "use client";
 
+import { BANNER_COLORS } from "@/constants";
 import AvatarUpload from "@/features/settings/components/avatar-upload";
+import { deleteWorkspace } from "@/features/workspaces/actions/delete-workspace";
+import { leaveWorkspace } from "@/features/workspaces/actions/leave-workspace";
+import { removeWorkspaceMember } from "@/features/workspaces/actions/remove-workspace-member";
 import { updateWorkspace } from "@/features/workspaces/actions/update-workspace";
+import {
+  getWorkspaceMembers,
+  WorkspaceMemberDetail,
+} from "@/features/workspaces/queries/get-workspace-members";
+import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/utils";
 import { AlertTriangle, LogOut, Search, Trash2, UserMinus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -17,49 +38,38 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { deleteWorkspace } from "@/features/workspaces/actions/delete-workspace";
-import { useRouter } from "next/navigation";
-import { leaveWorkspace } from "@/features/workspaces/actions/leave-workspace";
-import {
-  getWorkspaceMembers,
-  WorkspaceMemberDetail,
-} from "@/features/workspaces/queries/get-workspace-members";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { authClient } from "@/lib/auth-client";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "./ui/alert-dialog";
-import { removeWorkspaceMember } from "@/features/workspaces/actions/remove-workspace-member";
 
 interface WorksapceSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceId: string;
-  workspaceName: string;
-  workspaceImage: string | null;
-  workspaceImageKey: string | null;
+  workspace: {
+    id: string;
+    name: string;
+    image: string | null;
+    imageKey: string | null;
+    banner: string | null;
+    bannerKey: string | null;
+    description: string | null;
+    isPrivate: boolean;
+    traits: string[];
+  };
 }
 
 export function WorksapceSettingsDialog({
   open,
   onOpenChange,
-  workspaceName,
-  workspaceImage,
-  workspaceId,
-  workspaceImageKey,
+  workspace,
 }: WorksapceSettingsDialogProps) {
-  const [name, setName] = useState(workspaceName);
-  const [imageUrl, setImageUrl] = useState(workspaceImage);
-  const [imageKey, setImageKey] = useState(workspaceImageKey);
+  const [name, setName] = useState(workspace.name);
+  const [imageUrl, setImageUrl] = useState(workspace.image);
+  const [imageKey, setImageKey] = useState(workspace.imageKey);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bannerUrl, setBannerUrl] = useState(workspace.banner);
+  const [description, setDescription] = useState(workspace.description ?? "");
+  const [isPrivate, setIsPrivate] = useState(workspace.isPrivate);
+  const [traits, setTraits] = useState<string[]>(workspace.traits);
+  const [newTrait, setNewTrait] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [members, setMembers] = useState<WorkspaceMemberDetail[]>([]);
@@ -79,7 +89,7 @@ export function WorksapceSettingsDialog({
     if (open) {
       (async () => {
         setLoadingMembers(true);
-        const res = await getWorkspaceMembers(workspaceId);
+        const res = await getWorkspaceMembers(workspace.id);
         if (!res.success) {
           toast.error(res.error || "Failed to load members");
         } else if (res.success && res.data) {
@@ -88,7 +98,7 @@ export function WorksapceSettingsDialog({
         setLoadingMembers(false);
       })();
     }
-  }, [open, workspaceId]);
+  }, [open, workspace.id]);
 
   const filteredMembers = members.filter((member) => {
     return (
@@ -102,10 +112,14 @@ export function WorksapceSettingsDialog({
     if (!name.trim()) return;
 
     startTransition(async () => {
-      const res = await updateWorkspace(workspaceId, {
+      const res = await updateWorkspace(workspace.id, {
         name,
         imageUrl: imageUrl ?? undefined,
         imageKey: imageKey ?? undefined,
+        banner: bannerUrl,
+        description,
+        isPrivate,
+        traits,
       });
 
       if (!res.success) {
@@ -125,7 +139,7 @@ export function WorksapceSettingsDialog({
 
   const handleRemoveMember = (targetUserId: string, targetuserName: string) => {
     startTransition(async () => {
-      const res = await removeWorkspaceMember(workspaceId, targetUserId);
+      const res = await removeWorkspaceMember(workspace.id, targetUserId);
       if (!res.success) {
         toast.error(res.error || "Failed to remove member");
         return;
@@ -140,7 +154,7 @@ export function WorksapceSettingsDialog({
   return (
     <>
       <Dialog open={open && !isDeleting} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] h-[500px] flex flex-col overflow-hidden">
+        <DialogContent className="sm:max-w-[780px] h-[560px] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Workspace Settings</DialogTitle>
             <DialogDescription>
@@ -152,8 +166,9 @@ export function WorksapceSettingsDialog({
             defaultValue="general"
             className="flex-1 flex flex-col min-h-0 mt-2"
           >
-            <TabsList className="grid grid-cols-3 w-full shrink-0">
+            <TabsList className="grid grid-cols-4 w-full shrink-0">
               <TabsTrigger value="general">Overview</TabsTrigger>
+              <TabsTrigger value="profile">Server Profile</TabsTrigger>
               <TabsTrigger value="members">Members</TabsTrigger>
               <TabsTrigger value="danger">Danger Zone</TabsTrigger>
             </TabsList>
@@ -197,6 +212,187 @@ export function WorksapceSettingsDialog({
                   </Button>
                 </div>
               </form>
+            </TabsContent>
+
+            <TabsContent
+              value="profile"
+              className="flex-1 overflow-y-auto pt-4 pb-2 min-h-0"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6 h-full items-start">
+                <form onSubmit={handleSave} className="md:col-span-3 space-y-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      Banner Background
+                    </Label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {BANNER_COLORS.map((grad, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="h-10 rounded-md border border-zinc-200 dark:border-zinc-800 cursor-pointer active:scale-95 transition-all shadow-inner"
+                          style={{ background: grad }}
+                          onClick={() => setBannerUrl(grad)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="ws-desc"
+                      className="text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                    >
+                      About / Description
+                    </Label>
+                    <textarea
+                      id="ws-desc"
+                      rows={2}
+                      maxLength={120}
+                      placeholder="Tell people what this workspace is about..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full text-sm p-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent resize-none outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
+                    />
+                    <div className="text-[10px] text-zinc-400 text-right">
+                      {description.length}/120 characters
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      Server Traits (Max 5)
+                    </Label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {traits.map((t, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-2 py-0.5 rounded-full"
+                        >
+                          {t}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTraits((prev) =>
+                                prev.filter((_, i) => i !== idx),
+                              )
+                            }
+                            className="hover:text-red-500 font-bold text-xs"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    {traits.length < 5 && (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g. Coding 💻 (Press Enter)"
+                          value={newTrait}
+                          onChange={(e) => setNewTrait(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const trimmed = newTrait.trim();
+                              if (trimmed && !traits.includes(trimmed)) {
+                                setTraits((prev) => [...prev, trimmed]);
+                                setNewTrait("");
+                              }
+                            }
+                          }}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 p-3 shadow-xs">
+                      <div className="space-y-0.5">
+                        <Label className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                          Private Workspace
+                        </Label>
+                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                          Only users with an invite code can join this
+                          workspace.
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isPrivate}
+                        onChange={(e) => setIsPrivate(e.target.checked)}
+                        className="size-4 accent-indigo-600 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-4">
+                    <Button
+                      type="submit"
+                      disabled={isPending || !name.trim() || isUploading}
+                    >
+                      {isPending
+                        ? "Saving..."
+                        : isUploading
+                          ? "Uploading Icon..."
+                          : "Save Changes"}
+                    </Button>
+                  </div>
+                </form>
+
+                <div className="md:col-span-2 flex justify-center py-2">
+                  <div className="w-[240px] h-[330px] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 text-white flex flex-col shadow-xl select-none">
+                    <div
+                      className="h-20 w-full shrink-0 relative"
+                      style={{
+                        background: bannerUrl?.startsWith("linear-gradient")
+                          ? bannerUrl
+                          : `linear-gradient(135deg, #18181b 0%, #09090b 100%)`,
+                      }}
+                    >
+                      <div className="absolute -bottom-6 left-4 size-14 rounded-full border-4 border-zinc-950 overflow-hidden bg-zinc-900 flex items-center justify-center">
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt="preview icon"
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <span className="font-bold text-lg text-white">
+                            {getInitials(name).slice(0, 2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 p-4 pt-8 flex flex-col min-h-0 text-left">
+                      <h4 className="font-bold text-sm text-zinc-100 truncate">
+                        {name}
+                      </h4>
+                      <p className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1.5 font-medium shrink-0">
+                        <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" />
+                        1 Online <span className="text-zinc-600">•</span> 1
+                        Member
+                      </p>
+                      <div className="w-full h-px bg-zinc-800 my-2.5 shrink-0" />
+                      <div className="flex-1 min-h-0 flex flex-col justify-between">
+                        <p className="text-[10px] text-zinc-300 italic leading-relaxed line-clamp-3">
+                          {description ?? "No description provided yet."}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-3 overflow-hidden max-h-[48px]">
+                          {traits.length === 0 ? (
+                            <span className="text-[9px] text-zinc-500 italic">
+                              No traits added
+                            </span>
+                          ) : (
+                            traits.map((t, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[8px] bg-zinc-900 border border-zinc-850 px-1.5 py-0.5 rounded-md text-zinc-300 truncate max-w-[80px]"
+                              >
+                                {t}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent
@@ -326,14 +522,14 @@ export function WorksapceSettingsDialog({
             <p className="text-xs text-zinc-400">
               To confirm, type{" "}
               <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                "{workspaceName}"
+                "{workspace.name}"
               </span>{" "}
               below:
             </p>
             <Input
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder={workspaceName}
+              placeholder={workspace.name}
               className="border-red-500/30 focus-visible:ring-red-500"
             />
           </div>
@@ -352,10 +548,10 @@ export function WorksapceSettingsDialog({
             <Button
               type="button"
               variant="destructive"
-              disabled={deleteConfirm !== workspaceName || isPending}
+              disabled={deleteConfirm !== workspace.name || isPending}
               onClick={() => {
                 startTransition(async () => {
-                  const res = await deleteWorkspace(workspaceId);
+                  const res = await deleteWorkspace(workspace.id);
                   if (!res.success) {
                     toast.error(res.error);
                     return;

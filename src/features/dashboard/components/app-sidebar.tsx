@@ -21,6 +21,11 @@ type Props = {
     ownerId: string;
     image: string | null;
     imageKey: string | null;
+    banner: string | null;
+    bannerKey: string | null;
+    description: string | null;
+    isPrivate: boolean;
+    traits: string[];
   } | null;
   channels: Channel[];
   conversations: ConversationWithUser[];

@@ -51,6 +51,11 @@ export default async function Layout({
       ownerId: true,
       image: true,
       imageKey: true,
+      banner: true,
+      bannerKey: true,
+      description: true,
+      isPrivate: true,
+      traits: true,
     },
   });
 

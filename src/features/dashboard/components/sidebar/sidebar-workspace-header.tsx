@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   SidebarHeader,
-  SidebarMenuButton,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -33,6 +32,11 @@ interface SidebarWorkspaceHeaderProps {
     ownerId: string;
     image: string | null;
     imageKey: string | null;
+    banner: string | null;
+    bannerKey: string | null;
+    description: string | null;
+    isPrivate: boolean;
+    traits: string[];
   } | null;
 }
 
@@ -59,10 +63,10 @@ export default function SidebarWorkspaceHeader({
 
   return (
     <>
-      <SidebarHeader>
-        <div className="flex items-center justify-between px-1 py-0.5">
+      <SidebarHeader className="p-2 shrink-0">
+        <div className="flex items-center justify-between">
           {isCollapsed ? (
-            <div className="flex justify-center w-full">
+            <div className="flex justify-center w-full py-1">
               <div className="size-7 rounded-md overflow-hidden bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900 flex items-center justify-center shrink-0">
                 {activeWorkspace?.image ? (
                   <img
@@ -78,49 +82,57 @@ export default function SidebarWorkspaceHeader({
               </div>
             </div>
           ) : (
-            <>
+            <div
+              className="relative w-full h-32 rounded-lg overflow-hidden group border border-zinc-200/30 dark:border-zinc-800/30 flex flex-col justify-end shadow-sm"
+              style={{
+                background: activeWorkspace?.banner?.startsWith(
+                  "linear-gradient",
+                )
+                  ? activeWorkspace.banner
+                  : activeWorkspace?.banner
+                    ? `url(${activeWorkspace.banner}) center/cover no-repeat`
+                    : `linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)`,
+              }}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton size="lg" className="w-full">
-                    <div className="flex items-center gap-2 cursor-pointer w-full text-left min-w-0">
-                      <div className="size-7 rounded-md overflow-hidden bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900 flex items-center justify-center shrink-0">
-                        {activeWorkspace?.image ? (
-                          <img
-                            src={activeWorkspace.image}
-                            alt={workspaceName}
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <span className="font-bold text-xs">
-                            {workspaceInitials.slice(0, 2)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-col flex-1 min-w-0 leading-tight">
-                        <span className="font-semibold text-sm truncate">
-                          {workspaceName}
+                  <button className="w-full text-left p-2.5 bg-black/45 hover:bg-black/60 backdrop-blur-md text-white transition-all flex items-center gap-2 outline-none border-t border-white/10">
+                    <div className="size-7 rounded-md overflow-hidden bg-white/25 flex items-center justify-center shrink-0 border border-white/10">
+                      {activeWorkspace?.image ? (
+                        <img
+                          src={activeWorkspace.image}
+                          alt={workspaceName}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <span className="font-bold text-xs text-white">
+                          {workspaceInitials.slice(0, 2)}
                         </span>
-                        <span className="text-[10px] text-zinc-400 truncate">
-                          Active Workspace
-                        </span>
-                      </div>
-                      <ChevronDown className="size-3.5 text-zinc-400 shrink-0 ml-auto" />
+                      )}
                     </div>
-                  </SidebarMenuButton>
+                    <div className="flex flex-col flex-1 min-w-0 leading-tight">
+                      <span className="font-semibold text-sm truncate drop-shadow-sm">
+                        {workspaceName}
+                      </span>
+                      <span className="text-[10px] text-zinc-300 truncate">
+                        {activeWorkspace?.description || "No description"}
+                      </span>
+                    </div>
+                    <ChevronDown className="size-3.5 text-zinc-300 shrink-0 ml-auto" />
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56 mt-1">
                   <DropdownMenuLabel className="text-xs text-zinc-400">
                     Workspace Options
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-
                   <DropdownMenuItem
                     onClick={handleCopyInviteCode}
                     className="flex items-center gap-2 cursor-pointer"
                   >
                     <Copy className="size-4" />
                     Copy Invite Code:{" "}
-                    <span className="font-mono font-bold text-emerald-600">
+                    <span className="font-mono font-bold text-emerald-600 ml-auto">
                       {activeWorkspace?.inviteCode}
                     </span>
                   </DropdownMenuItem>
@@ -152,7 +164,7 @@ export default function SidebarWorkspaceHeader({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </>
+            </div>
           )}
         </div>
         {activeWorkspace && (
@@ -160,10 +172,7 @@ export default function SidebarWorkspaceHeader({
             <WorksapceSettingsDialog
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
-              workspaceName={activeWorkspace.name}
-              workspaceImage={activeWorkspace.image}
-              workspaceImageKey={activeWorkspace.imageKey}
-              workspaceId={activeWorkspace.id}
+              workspace={activeWorkspace}
             />
             <LeaveWorkspaceDialog
               open={leaveOpen}

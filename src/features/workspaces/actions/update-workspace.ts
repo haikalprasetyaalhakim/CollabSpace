@@ -15,6 +15,10 @@ export async function updateWorkspace(
     name?: string;
     imageUrl?: string | undefined;
     imageKey?: string | undefined;
+    banner?: string | null;
+    description?: string | null;
+    isPrivate?: boolean;
+    traits?: string[];
   },
 ): Promise<ActionResult> {
   try {
@@ -33,6 +37,11 @@ export async function updateWorkspace(
 
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined)
+      updateData.description = data.description;
+    if (data.isPrivate !== undefined) updateData.isPrivate = data.isPrivate;
+    if (data.traits !== undefined) updateData.traits = data.traits;
+    if (data.banner !== undefined) updateData.banner = data.banner;
     if (data.imageUrl !== undefined) {
       updateData.image = data.imageUrl;
       updateData.imageKey = data.imageKey;
