@@ -1,6 +1,20 @@
-const onlineUsers = new Map<string, number>();
-const presenceSubscribers = new Set<ReadableStreamDefaultController>();
-const userStatuses = new Map<string, string>();
+const globalForPresence = global as unknown as {
+  onlineUsers: Map<string, number>;
+  presenceSubscribers: Map<string, Set<ReadableStreamDefaultController>>;
+  userStatuses: Map<string, string>;
+};
+export const onlineUsers =
+  globalForPresence.onlineUsers || new Map<string, number>();
+export const presenceSubscribers =
+  globalForPresence.presenceSubscribers ||
+  new Map<string, Set<ReadableStreamDefaultController>>();
+export const userStatuses =
+  globalForPresence.userStatuses || new Map<string, string>();
+if (process.env.NODE_ENV !== "production") {
+  globalForPresence.onlineUsers = onlineUsers;
+  globalForPresence.presenceSubscribers = presenceSubscribers;
+  globalForPresence.userStatuses = userStatuses;
+}
 
 export function userConnected(
   userId: string,
@@ -9,7 +23,11 @@ export function userConnected(
 ): void {
   onlineUsers.set(userId, (onlineUsers.get(userId) ?? 0) + 1);
   userStatuses.set(userId, status);
-  presenceSubscribers.add(controller);
+
+  if (!presenceSubscribers.has(userId)) {
+    presenceSubscribers.set(userId, new Set());
+  }
+  presenceSubscribers.get(userId)!.add(controller);
   broadcastPresence();
 }
 
@@ -25,7 +43,14 @@ export function userDisconnected(
     onlineUsers.set(userId, count - 1);
   }
 
-  presenceSubscribers.delete(controller);
+  const userCtrls = presenceSubscribers.get(userId);
+  if (userCtrls) {
+    userCtrls.delete(controller);
+    if (userCtrls.size === 0) {
+      presenceSubscribers.delete(userId);
+    }
+  }
+
   broadcastPresence();
 }
 
@@ -48,25 +73,42 @@ function broadcastPresence(): void {
   });
 
   const encoded = new TextEncoder().encode(`data: ${payload}\n\n`);
-  presenceSubscribers.forEach((ctrl) => {
+  presenceSubscribers.forEach((controllers) => {
+    controllers.forEach((controller) => {
+      try {
+        controller.enqueue(encoded);
+      } catch (error) {
+        controllers.delete(controller);
+      }
+    });
+  });
+}
+
+export function sendTargetEvent(userId: string, data: unknown): void {
+  const controllers = presenceSubscribers.get(userId);
+  if (!controllers) return;
+
+  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
+  controllers.forEach((ctrl) => {
     try {
       ctrl.enqueue(encoded);
-    } catch {
-      presenceSubscribers.delete(ctrl);
+    } catch (error) {
+      controllers.delete(ctrl);
     }
   });
 }
 
 if (process.env.NODE_ENV !== "test") {
   const pingData = new TextEncoder().encode(": ping\n\n");
-
   setInterval(() => {
-    presenceSubscribers.forEach((ctrl) => {
-      try {
-        ctrl.enqueue(pingData);
-      } catch {
-        presenceSubscribers.delete(ctrl);
-      }
+    presenceSubscribers.forEach((controllers) => {
+      controllers.forEach((ctrl) => {
+        try {
+          ctrl.enqueue(pingData);
+        } catch {
+          controllers.delete(ctrl);
+        }
+      });
     });
   }, 20000);
 }

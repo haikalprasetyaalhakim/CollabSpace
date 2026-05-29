@@ -1,6 +1,8 @@
 "use client";
 
+import { useParams, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 type PresenceData = {
   onlineUserIds: Set<string>;
@@ -18,6 +20,11 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     new Map(),
   );
 
+  const router = useRouter();
+  const params = useParams();
+
+  const currentWorkspaceId = params.workspaceId as string | undefined;
+
   useEffect(() => {
     const eventSource = new EventSource("/api/presence");
     eventSource.onmessage = (evt) => {
@@ -25,6 +32,13 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       if (data.type === "presence") {
         setOnlineUserIds(new Set(data.onlineUserIds as string[]));
         setUserStatuses(new Map(Object.entries(data.userStatuses ?? {})));
+      } else if (
+        data.type === "kick" &&
+        data.workspaceId == currentWorkspaceId
+      ) {
+        toast.error("You've been kicked from this workspace");
+        router.push("/dashboard");
+        router.refresh();
       }
     };
 
