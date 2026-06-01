@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { headers } from "next/headers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -22,11 +23,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerList = await headers();
+  const nonce = headerList.get("x-nonce") || undefined;
+
   return (
     <html
       lang="en"
@@ -34,7 +38,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          nonce={nonce!}
+        >
           {children}
         </ThemeProvider>
         <Toaster />
