@@ -3,11 +3,12 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BadgeCheck, Compass, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Compass, Search, Sparkles } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { joinPublicWorkspace } from "@/features/workspaces/actions/join-workspace-public";
+import Link from "next/link";
 
 type PublicWorkspace = {
   id: string;
@@ -78,6 +79,13 @@ export default function DiscoverClient({
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col items-center overflow-y-auto no-scrollbar pb-12">
       <div className="w-full max-w-5xl px-4 pt-6 shrink-0">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 font-semibold transition-colors mb-4 group"
+        >
+          <ArrowLeft className="size-4 group-hover:-translate-x-1 transition-transform" />
+          Back to Workspace
+        </Link>
         <div className="w-full h-64 rounded-xl relative overflow-hidden flex flex-col justify-center px-8 md:px-12 space-y-3 border border-zinc-200 dark:border-zinc-800/50 shadow-md bg-linear-to-br from-zinc-100 via-zinc-50 to-zinc-200 dark:from-zinc-900 dark:via-zinc-950 dark:to-zinc-900">
           <div className="absolute right-[-10%] top-[-20%] w-[350px] h-[350px] rounded-full bg-zinc-900/5 dark:bg-white/5 blur-3xl pointer-events-none" />
           <div className="absolute left-[-5%] bottom-[-20%] w-[250px] h-[250px] rounded-full bg-zinc-950/10 dark:bg-black/40 blur-2xl pointer-events-none" />
