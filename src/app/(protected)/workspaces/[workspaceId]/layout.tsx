@@ -12,7 +12,7 @@ import { UnreadProvider } from "@/hooks/use-unread";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { cn, getInitials } from "@/lib/utils";
-import { Plus, Sparkles } from "lucide-react";
+import { Compass, Plus, Sparkles } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -141,8 +141,17 @@ export default async function Layout({
                   <Link
                     href="/workspaces/onboarding"
                     className="flex items-center justify-center size-12 rounded-[20px] hover:rounded-[12px] bg-zinc-900 text-zinc-400 hover:bg-emerald-600 hover:text-white transition-all mt-1"
+                    title="Add or Join Workspace"
                   >
                     <Plus className="size-5" />
+                  </Link>
+
+                  <Link
+                    href="/workspaces/discover"
+                    className="flex items-center justify-center size-12 rounded-[20px] hover:rounded-[12px] bg-zinc-900 text-zinc-400 hover:bg-indigo-600 hover:text-white transition-all mt-1"
+                    title="Discover Public Workspaces"
+                  >
+                    <Compass className="size-5" />
                   </Link>
                 </div>
               </aside>
