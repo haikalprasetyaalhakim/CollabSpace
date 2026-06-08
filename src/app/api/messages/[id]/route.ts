@@ -71,3 +71,46 @@ export async function DELETE(
   });
   return new Response(null, { status: 204 });
 }
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session)
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const message = await prisma.message.findUnique({
+    where: { id },
+    include: {
+      user: { select: { id: true, name: true, image: true, username: true } },
+      replyTo: {
+        select: {
+          id: true,
+          content: true,
+          user: { select: { id: true, name: true } },
+        },
+      },
+      messageReactions: {
+        select: {
+          id: true,
+          emoji: true,
+          userId: true,
+          user: { select: { name: true } },
+        },
+      },
+      _count: {
+        select: {
+          threadReplies: true,
+        },
+      },
+    },
+  });
+
+  if (!message)
+    return Response.json({ error: "Message not found" }, { status: 404 });
+  return Response.json(message);
+}

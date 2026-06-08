@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 
 export async function getChannelMessages(channelId: string) {
   const messages = await prisma.message.findMany({
-    where: { channelId },
+    where: { channelId, threadParentId: null },
     include: {
       user: {
         select: { id: true, name: true, image: true, username: true },
@@ -21,6 +21,11 @@ export async function getChannelMessages(channelId: string) {
           id: true,
           content: true,
           user: { select: { id: true, name: true } },
+        },
+      },
+      _count: {
+        select: {
+          threadReplies: true,
         },
       },
     },

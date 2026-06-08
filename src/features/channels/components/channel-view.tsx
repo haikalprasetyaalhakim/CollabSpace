@@ -81,16 +81,20 @@ function MessageItem({
   onPin,
   isPinned,
   isCompact = false,
+  onThreadReply,
+  repliesCount = 0,
 }: {
   message: MessageWithUser;
   currentUserId: string;
   onEdit: (id: string, content: string) => void;
   onDelete: (id: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
-  onReply: (message: MessageWithUser) => void;
+  onReply?: (message: MessageWithUser) => void;
   onPin: (messageId: string) => void;
   isPinned: boolean;
   isCompact?: boolean;
+  onThreadReply?: (message: MessageWithUser) => void;
+  repliesCount?: number;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -218,6 +222,16 @@ function MessageItem({
 
         {message.images.length > 0 && <ImageGrid images={message.images} />}
 
+        {repliesCount > 0 && (
+          <button
+            className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline mt-1 font-semibold flex items-center gap-1.5 w-fit cursor-pointer"
+            onClick={() => onThreadReply?.(message)}
+          >
+            <MessageSquare className="size-3.5" />
+            {repliesCount} {repliesCount === 1 ? "reply" : "replies"}
+          </button>
+        )}
+
         {message.messageReactions.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {Object.entries(
@@ -295,11 +309,21 @@ function MessageItem({
             )}
           </div>
 
+          {onReply && (
+            <button
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              onClick={() => onReply(message)}
+            >
+              <Reply className="size-3.5" />
+            </button>
+          )}
+
           <button
             className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            onClick={() => onReply(message)}
+            onClick={() => onThreadReply?.(message)}
+            title="Reply in Thread"
           >
-            <Reply className="size-3.5" />
+            <MessageSquare className="size-3.5" />
           </button>
 
           <button
@@ -481,6 +505,9 @@ export function ChannelView({
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageWithUser | null>(null);
+  const [activeThreadParentId, setActiveThreadParentId] = useState<
+    string | null
+  >(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>();
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(
     new Set(initialPinnedIds),
@@ -524,6 +551,12 @@ export function ChannelView({
     if (!highlightMessageId) return;
     clearChannelMentions(channelId);
 
+    const highlightedMsg = messages.find((m) => m.id === highlightMessageId);
+    if (highlightMessageId && highlightedMsg?.threadParentId) {
+      setActiveThreadParentId(highlightedMsg.threadParentId);
+      return;
+    }
+
     const tryScroll = () => {
       const el = document.getElementById(`message-${highlightMessageId}`);
       if (el) {
@@ -535,7 +568,33 @@ export function ChannelView({
 
     const raf = requestAnimationFrame(() => setTimeout(tryScroll, 100));
     return () => cancelAnimationFrame(raf);
-  }, [highlightMessageId, channelId, clearChannelMentions]);
+  }, [highlightMessageId, channelId, clearChannelMentions, highlightMessageId]);
+
+  useEffect(() => {
+    if (!activeThreadParentId) return;
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/messages/${activeThreadParentId}/replies`,
+        );
+        const data = (await res.json()) as MessageWithUser[];
+        if (!res.ok) {
+          toast.error("Failed to load thread replies");
+          return;
+        }
+        setMessages((prev) => {
+          const otherMessages = prev.filter(
+            (pm) => !data.some((dm) => dm.id === pm.id),
+          );
+
+          return [...otherMessages, ...data];
+        });
+      } catch (error) {
+        toast.error("Network Error");
+      }
+    })();
+  }, [activeThreadParentId]);
 
   useEffect(() => {
     revokeAllRef.current = () => {
@@ -741,6 +800,10 @@ export function ChannelView({
         messageReactions: [],
         replyToId: replyingTo?.id ?? null,
         replyTo: replyingTo ?? null,
+        threadParentId: null,
+        _count: {
+          threadReplies: 0,
+        },
         user: {
           id: session?.user.id!,
           name: session?.user.name!,
@@ -784,6 +847,70 @@ export function ChannelView({
       toast.error("Network error.");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSendThreadReply = async (content: string) => {
+    if (!content.trim() || !activeThreadParentId) return;
+
+    const tempId = crypto.randomUUID();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        content: content.trim(),
+        images: [],
+        channelId,
+        messageReactions: [],
+        replyToId: null,
+        replyTo: null,
+        threadParentId: activeThreadParentId,
+        _count: {
+          threadReplies: 0,
+        },
+        user: {
+          id: session?.user.id!,
+          name: session?.user.name!,
+          image: session?.user.image ?? null,
+          username: session?.user.username ?? null,
+        },
+        createdAt: new Date(),
+        userId: session?.user.id!,
+      },
+    ]);
+
+    try {
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelId,
+          content: content.trim(),
+          clientId: tempId,
+          threadParentId: activeThreadParentId,
+        }),
+      });
+      if (!response.ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        const error = await response.json();
+        toast.error(error.error ?? "Failed to send reply");
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === activeThreadParentId
+              ? {
+                  ...m,
+                  _count: {
+                    threadReplies: (m._count.threadReplies ?? 0) + 1,
+                  },
+                }
+              : m,
+          ),
+        );
+      }
+    } catch (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast.error("Network error.");
     }
   };
 
@@ -1060,50 +1187,57 @@ export function ChannelView({
                     </button>
                   </div>
                 )}
-                {messages.map((msg, index) => {
-                  const prev = messages[index - 1];
-
-                  const isSameUser = prev && prev.userId === msg.userId;
-                  const isTimeClose =
-                    prev &&
-                    new Date(msg.createdAt).getTime() -
-                      new Date(prev.createdAt).getTime() <
-                      120000;
-
-                  const showDateSeparator =
-                    !prev ||
-                    new Date(msg.createdAt).toDateString() !==
-                      new Date(prev.createdAt).toDateString();
-
-                  const isCompact =
-                    isSameUser && isTimeClose && !showDateSeparator;
-
-                  return (
-                    <React.Fragment key={msg.id}>
-                      {showDateSeparator && (
-                        <div className="flex items-center gap-3 px-4 py-2">
-                          <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-                          <span className="text-xs text-zinc-400 font-medium shrink-0">
-                            {formatDateLabel(new Date(msg.createdAt))}
-                          </span>
-                          <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-                        </div>
-                      )}
-                      <MessageItem
-                        key={msg.id}
-                        message={msg}
-                        currentUserId={session?.user.id!}
-                        onEdit={handleEditMessage}
-                        onDelete={handleDeleteMessage}
-                        onReaction={handleToggleReaction}
-                        onReply={handleReply}
-                        onPin={handleTogglePin}
-                        isPinned={pinnedIds.has(msg.id)}
-                        isCompact={isCompact}
-                      />
-                    </React.Fragment>
+                {(() => {
+                  const mainMessages = messages.filter(
+                    (msg) => msg.threadParentId === null,
                   );
-                })}
+                  return mainMessages.map((msg, index) => {
+                    const prev = mainMessages[index - 1];
+
+                    const isSameUser = prev && prev.userId === msg.userId;
+                    const isTimeClose =
+                      prev &&
+                      new Date(msg.createdAt).getTime() -
+                        new Date(prev.createdAt).getTime() <
+                        120000;
+
+                    const showDateSeparator =
+                      !prev ||
+                      new Date(msg.createdAt).toDateString() !==
+                        new Date(prev.createdAt).toDateString();
+
+                    const isCompact =
+                      isSameUser && isTimeClose && !showDateSeparator;
+
+                    return (
+                      <React.Fragment key={msg.id}>
+                        {showDateSeparator && (
+                          <div className="flex items-center gap-3 px-4 py-2">
+                            <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                            <span className="text-xs text-zinc-400 font-medium shrink-0">
+                              {formatDateLabel(new Date(msg.createdAt))}
+                            </span>
+                            <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                          </div>
+                        )}
+                        <MessageItem
+                          key={msg.id}
+                          message={msg}
+                          currentUserId={session?.user.id!}
+                          onEdit={handleEditMessage}
+                          onDelete={handleDeleteMessage}
+                          onReaction={handleToggleReaction}
+                          onReply={handleReply}
+                          onPin={handleTogglePin}
+                          isPinned={pinnedIds.has(msg.id)}
+                          isCompact={isCompact}
+                          onThreadReply={(m) => setActiveThreadParentId(m.id)}
+                          repliesCount={msg._count.threadReplies}
+                        />
+                      </React.Fragment>
+                    );
+                  });
+                })()}
                 <div ref={bottomRef} />
                 {showScrollBtn && (
                   <button
@@ -1310,6 +1444,22 @@ export function ChannelView({
         {showMemberPanel && (
           <ChannelMemberPanel members={members} currentUserId={currentUserId} />
         )}
+
+        {activeThreadParentId && (
+          <ThreadPanel
+            activeThreadParentId={activeThreadParentId}
+            messages={messages}
+            channelName={channelName}
+            onClose={() => setActiveThreadParentId(null)}
+            currentUserId={currentUserId}
+            onEdit={handleEditMessage}
+            onSendReply={handleSendThreadReply}
+            onDelete={handleDeleteMessage}
+            onReaction={handleToggleReaction}
+            onPin={handleTogglePin}
+            pinnedIds={pinnedIds}
+          />
+        )}
       </div>
 
       <InviteMemberDialog
@@ -1328,5 +1478,177 @@ export function ChannelView({
         channelDescription={channelDescription}
       />
     </div>
+  );
+}
+
+function ThreadPanel({
+  activeThreadParentId,
+  messages,
+  channelName,
+  onClose,
+  currentUserId,
+  onEdit,
+  onDelete,
+  onPin,
+  onReaction,
+  onSendReply,
+  pinnedIds,
+}: {
+  activeThreadParentId: string;
+  messages: MessageWithUser[];
+  channelName: string;
+  onClose: () => void;
+  currentUserId: string;
+  onSendReply: (content: string) => void;
+  onEdit: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
+  onReaction: (messageId: string, emoji: string) => void;
+  onPin: (messageId: string) => void;
+  pinnedIds: Set<string>;
+}) {
+  const parentMessage = messages.find((m) => m.id === activeThreadParentId);
+  const replies = messages.filter(
+    (m) => m.threadParentId === activeThreadParentId,
+  );
+  const [replyInput, setReplyInput] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [replies.length]);
+
+  if (!parentMessage) {
+    return (
+      <aside className="w-96 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col items-center justify-center bg-white dark:bg-zinc-950 p-4">
+        <span className="size-5 border border-zinc-400 border-t-transparent rounded-full animate-spin mb-2" />
+        <p className="text-xs text-zinc-500">Loading thread...</p>
+      </aside>
+    );
+  }
+
+  const handleSubmit = () => {
+    if (!replyInput.trim()) return;
+    onSendReply(replyInput.trim());
+    setReplyInput("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  return (
+    <aside className="w-[420px] shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden h-full z-20">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md shrink-0">
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            Thread
+          </span>
+          <span className="text-xs text-zinc-400 truncate">#{channelName}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="pb-4 border-b border-zinc-100 dark:border-zinc-800/80">
+          <div className="flex items-center gap-3">
+            <Avatar className="size-8 shrink-0">
+              <AvatarImage src={parentMessage.user.image ?? ""} />
+              <AvatarFallback>
+                {getInitials(parentMessage.user.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
+                  {parentMessage.user.name}
+                </span>
+                <span className="text-[10px] text-zinc-400">
+                  {new Date(parentMessage.createdAt).toLocaleDateString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              {parentMessage.content && (
+                <p className="text-sm text-zinc-750 dark:text-zinc-355 break-all mt-1 leading-relaxed">
+                  {renderContent(parentMessage.content)}
+                </p>
+              )}
+              {parentMessage.images.length > 0 && (
+                <div className="mt-2">
+                  <ImageGrid images={parentMessage.images} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+            {replies.length} repl{replies.length === 1 ? "y" : "ies"}
+          </span>
+          <div className="flex-1 h-px bg-zinc-100 dark:bg-zinc-800/80" />
+        </div>
+
+        <div className="space-y-1">
+          {replies.map((reply, index) => {
+            const prev = replies[index - 1];
+            const isSameUser = prev && prev.userId === reply.userId;
+
+            const isTimeClose =
+              prev &&
+              new Date(reply.createdAt).getTime() -
+                new Date(prev.createdAt).getTime() <
+                120000;
+
+            const isCompact = isSameUser && isTimeClose;
+
+            return (
+              <MessageItem
+                key={reply.id}
+                message={reply}
+                currentUserId={currentUserId}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onReaction={onReaction}
+                onPin={onPin}
+                isPinned={pinnedIds.has(reply.id)}
+                isCompact={isCompact}
+              />
+            );
+          })}
+          <div ref={scrollRef} />
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-950">
+        <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
+          <textarea
+            value={replyInput}
+            onChange={(e) => setReplyInput(e.target.value)}
+            rows={1}
+            onKeyDown={handleKeyDown}
+            placeholder="Reply..."
+            className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
+            style={{ fieldSizing: "content" }}
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={!replyInput.trim()}
+            className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
+          >
+            <Send className="size-3.5" />
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 }

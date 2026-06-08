@@ -14,6 +14,7 @@ const SendMessageSchema = z
     images: z.array(z.url()).max(4).optional(),
     clientId: z.string().optional(),
     replyToId: z.string().optional(),
+    threadParentId: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       images: images ?? [],
       replyToId: parsed.data.replyToId ?? null,
+      threadParentId: parsed.data.threadParentId ?? null,
     },
     include: {
       user: { select: { id: true, name: true, image: true, username: true } },
@@ -80,6 +82,11 @@ export async function POST(request: NextRequest) {
           emoji: true,
           userId: true,
           user: { select: { name: true } },
+        },
+      },
+      _count: {
+        select: {
+          threadReplies: true,
         },
       },
     },

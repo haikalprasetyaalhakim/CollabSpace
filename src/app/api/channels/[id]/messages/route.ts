@@ -34,6 +34,7 @@ export async function GET(
   const messages = await prisma.message.findMany({
     where: {
       channelId,
+      threadParentId: null,
       createdAt: { lt: cursorMessage.createdAt },
     },
     include: {
@@ -51,6 +52,11 @@ export async function GET(
           id: true,
           content: true,
           user: { select: { id: true, name: true } },
+        },
+      },
+      _count: {
+        select: {
+          threadReplies: true,
         },
       },
     },

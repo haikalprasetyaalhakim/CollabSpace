@@ -135,10 +135,13 @@ model Message {
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   channelId        String?
   channel          Channel?          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  threadParentId   String?
+  threadParent     Message?          @relation("ThreadReplies", fields: [threadParentId], references: [id], onDelete: Cascade)
   messageReactions MessageReaction[]
   replis           Message[]         @relation("MessageReplies")
   pinnedMessages   PinnedMessage[]
   mentions         Mention[]
+  threadReplies    Message[]         @relation("ThreadReplies")
 }
 
 model Conversation {
