@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -28,6 +28,7 @@ type Props = {
   initialChannelUnread: Record<string, number>;
   initialConversationUnread: Record<string, number>;
   initialMentions: { channelId: string; messageId: string }[];
+  initialConversationIds?: string[];
 };
 
 export function UnreadProvider({
@@ -35,9 +36,11 @@ export function UnreadProvider({
   initialChannelUnread,
   initialConversationUnread,
   initialMentions,
+  initialConversationIds = [],
 }: Props) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
+  const router = useRouter();
 
   const [channelUnread, setChannelUnread] = useState(initialChannelUnread);
   const [conversationUnread, setConversationUnread] = useState(
@@ -60,6 +63,12 @@ export function UnreadProvider({
   const [mentionedConversations, setMentionedConversations] = useState<
     Map<string, Set<string>>
   >(new Map());
+
+  const knownConversationIdsRef = useRef(new Set(initialConversationIds));
+
+  useEffect(() => {
+    knownConversationIdsRef.current = new Set(initialConversationIds);
+  }, [initialConversationIds]);
 
   const markChannelRead = useCallback((channelId: string) => {
     setChannelUnread((prev) => ({ ...prev, [channelId]: 0 }));
@@ -122,6 +131,11 @@ export function UnreadProvider({
 
       if (data.type === "new-dm-message") {
         const { conversationId } = data as { conversationId: string };
+
+        if (!knownConversationIdsRef.current.has(conversationId)) {
+          knownConversationIdsRef.current.add(conversationId);
+          router.refresh();
+        }
 
         if (currentPath === `/dm/${conversationId}`) {
           markConversationRead(conversationId);

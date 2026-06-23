@@ -99,6 +99,7 @@ export default async function Layout({
           initialChannelUnread={channelUnread}
           initialConversationUnread={conversationUnread}
           initialMentions={initialMentions}
+          initialConversationIds={conversations.map((c) => c.id)}
         >
           <SearchProvider>
             <div className="flex h-screen w-screen overflow-hidden">
