@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { broadcastToChannel } from "@/lib/sse";
 import { broadcastToUser } from "@/lib/user-notifications";
+import { sendPushNotification } from "@/lib/web-push";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import z from "zod";
@@ -58,6 +59,11 @@ export async function POST(request: NextRequest) {
 
   const { channelId, content, images } = parsed.data;
 
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: { name: true, workspaceId: true },
+  });
+
   const message = await prisma.message.create({
     data: {
       channelId,
@@ -92,6 +98,8 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  const mentionedUserIds = new Set<string>();
+
   if (content) {
     const mentionMatches = content.match(/@(\w+)/g);
     if (mentionMatches) {
@@ -117,11 +125,19 @@ export async function POST(request: NextRequest) {
         });
 
         mentionedUsers.forEach(({ id: userId }) => {
+          mentionedUserIds.add(userId);
           broadcastToUser(userId, {
             type: "mention",
             channelId,
             messageId: message.id,
           });
+
+          sendPushNotification(userId, {
+            title: `${session.user.name} mentioned you in #${channel!.name}`,
+            body: content?.trim() || "📷 Send an image",
+            url: `/workspaces/${channel!.workspaceId}/channels/${channelId}`,
+            tag: `mention-${channelId}`,
+          }).catch((err) => console.error("Mention push notify error", err));
         });
       }
     }
@@ -140,6 +156,17 @@ export async function POST(request: NextRequest) {
       type: "new-channel-message",
       channelId,
     });
+
+    if (!mentionedUserIds.has(userId)) {
+      sendPushNotification(userId, {
+        title: `New message in #${channel!.name}`,
+        body: `${session.user.name}: ${content?.trim() || "📷 Sent an image"}`,
+        url: `/workspaces/${channel!.workspaceId}/channels/${channelId}`,
+        tag: `channel-${channelId}`,
+      }).catch((err) =>
+        console.error("Channel message push notify error", err),
+      );
+    }
   });
 
   broadcastToChannel(channelId, {

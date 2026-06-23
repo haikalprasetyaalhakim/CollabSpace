@@ -1077,7 +1077,6 @@ export function ChannelView({
             </p>
           )}
         </div>
-
         {/* Discord-style Header Actions */}
         <div className="ml-auto flex items-center gap-2">
           {/* Bell Icon (Mute notifications) */}

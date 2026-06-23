@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { broadcastToChannel } from "@/lib/sse";
 import { broadcastToUser } from "@/lib/user-notifications";
+import { sendPushNotification } from "@/lib/web-push";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import z from "zod";
@@ -99,6 +100,13 @@ export async function POST(request: NextRequest) {
     type: "new-dm-message",
     conversationId,
   });
+
+  sendPushNotification(otherUser, {
+    title: `New DM from ${session.user.name}`,
+    body: content?.trim() || "📷 Send an image",
+    url: `/workspaces/${conversation.workspaceId}/dm/${conversationId}`,
+    tag: `dm-${conversationId}`,
+  }).catch((err) => console.error("Push notify error", err));
 
   if (content) {
     const mentionMatches = content.match(/@(\w+)/g);

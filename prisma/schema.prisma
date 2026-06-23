@@ -43,6 +43,7 @@ model User {
   mentions               Mention[]
   ownedWorkspaces        Workspace[]             @relation("WorkspaceOwner")
   workspaceMemberships   WorkspaceMember[]
+  pushSubscriptions      PushSubscription[]
 
   @@unique([email])
   @@unique([username])
@@ -288,4 +289,17 @@ model WorkspaceMember {
 
   @@id([workspaceId, userId])
   @@map("workspace_member")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscription")
 }

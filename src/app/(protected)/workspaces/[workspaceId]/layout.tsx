@@ -1,4 +1,5 @@
 import GlobalSearch from "@/components/global-search";
+import PushNotificationManager from "@/components/push-notification-manager";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { getChannelUnreadCounts } from "@/features/channels/queries/get-channel-unread-counts";
 import { getUnreadMentions } from "@/features/channels/queries/get-unread-mentions";
@@ -168,6 +169,7 @@ export default async function Layout({
               </div>
             </div>
             <GlobalSearch />
+            <PushNotificationManager />
           </SearchProvider>
         </UnreadProvider>
       </PresenceProvider>
