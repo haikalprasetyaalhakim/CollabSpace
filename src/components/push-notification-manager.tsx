@@ -17,11 +17,9 @@ function urlBase64ToUint8Array(base64String: string) {
 export default function PushNotificationManager() {
   const [permission, setPermission] =
     useState<NotificationPermission>("default");
-  const [isSupported, setIsSupported] = useState(false);
 
   useEffect(() => {
     const supported = "serviceWorker" in navigator && "PushManager" in window;
-    setIsSupported(supported);
 
     if (supported) {
       setPermission(Notification.permission);

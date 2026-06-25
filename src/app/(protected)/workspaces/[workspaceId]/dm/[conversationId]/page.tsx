@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import CallButtons from "@/features/calls/components/call-buttons";
 import { DmView } from "@/features/dm/components/dm-view";
 import { getDmMessages } from "@/features/dm/queries/get-dm-messages";
 import prisma from "@/lib/prisma";
@@ -65,6 +66,12 @@ export default async function Page({ params, searchParams }: Props) {
         <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
           {otherUser.name}
         </span>
+
+        <CallButtons
+          otherUserId={otherUser.id}
+          otherUserName={otherUser.name}
+          conversationId={conversationId}
+        />
       </header>
 
       <div className="flex overflow-hidden flex-1 min-w-0">
