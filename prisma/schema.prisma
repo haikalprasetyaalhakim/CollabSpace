@@ -14,6 +14,11 @@ enum UserStatus {
   offline
 }
 
+enum DirectMessageType {
+  TEXT
+  MISSED_CALL
+}
+
 model User {
   id            String    @id
   name          String
@@ -164,10 +169,11 @@ model Conversation {
 }
 
 model DirectMessage {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   content   String?
-  images    String[] @default([])
-  createdAt DateTime @default(now())
+  images    String[]          @default([])
+  createdAt DateTime          @default(now())
+  type      DirectMessageType @default(TEXT)
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

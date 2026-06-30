@@ -2,7 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCall } from "../context/call-context";
-import { getInitials } from "@/lib/utils";
+import { formatDuration, getInitials } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
@@ -13,6 +13,8 @@ export default function CallOverlay() {
     acceptCall,
     declineCall,
     endCall,
+    startCall,
+    dismissCall,
     isVideo,
     otherUser,
     localStream,
@@ -25,10 +27,50 @@ export default function CallOverlay() {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(!isVideo);
   const [localVideoWidth, setLocalVideoWidth] = useState(160);
+  const [callDuration, setCallDuration] = useState(0);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (callState !== "calling") return;
+
+    const audio = new Audio("/sounds/calling.mp3");
+    audio.loop = true;
+    audio.volume = 0.7;
+    audio.play().catch(() => {});
+
+    return () => {
+      audio.pause();
+    };
+  }, [callState]);
+
+  useEffect(() => {
+    if (callState !== "ringing") return;
+
+    const audio = new Audio("/sounds/ringing.mp3");
+    audio.loop = true;
+    audio.volume = 0.7;
+    audio.play().catch(() => {});
+
+    return () => {
+      audio.pause();
+    };
+  }, [callState]);
+
+  useEffect(() => {
+    if (callState !== "connected") {
+      setCallDuration(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [callState]);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -120,6 +162,24 @@ export default function CallOverlay() {
             </div>
           </div>
         )}
+
+        {callState === "unanswered" && (
+          <div className="flex flex-col items-center gap-6">
+            <Avatar className="size-28 ring-4 ring-zinc-800 shadow-2xl opacity-60">
+              <AvatarImage src={otherUser.image ?? ""} />
+              <AvatarFallback className="text-3xl font-semibold bg-zinc-900 text-zinc-300">
+                {getInitials(otherUser.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-center">
+              <h2 className="text-xl font-semibold tracking-wide">
+                {otherUser.name}
+              </h2>
+              <p className="text-sm text-zinc-400 mt-2">Tidak ada jawaban</p>
+            </div>
+          </div>
+        )}
+
         {callState === "connected" && (
           <div className="w-full h-full flex flex-col items-center justify-center gap-4 relative">
             <div className="w-full max-w-4xl aspect-video rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden relative shadow-2xl">
@@ -144,11 +204,16 @@ export default function CallOverlay() {
                       {getInitials(otherUser.name)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-zinc-400">{otherUser.name}</p>
-                    {isRemoteMuted && (
-                      <MicOff className="size-3 text-red-500" />
-                    )}
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-zinc-400">{otherUser.name}</p>
+                      {isRemoteMuted && (
+                        <MicOff className="size-3 text-red-500" />
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500 font-mono">
+                      {formatDuration(callDuration)}
+                    </p>
                   </div>
                 </div>
               )}
@@ -203,6 +268,25 @@ export default function CallOverlay() {
             </Button>
             <Button
               onClick={acceptCall}
+              className="size-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer hover:scale-105 transition-transform"
+              size="icon"
+            >
+              <Phone className="size-5" />
+            </Button>
+          </div>
+        )}
+        {callState === "unanswered" && (
+          <div className="flex items-center gap-6">
+            <Button
+              onClick={dismissCall}
+              variant="secondary"
+              size="icon"
+              className="size-12 rounded-full cursor-pointer hover:scale-105 transition-transform"
+            >
+              <PhoneOff className="size-5" />
+            </Button>
+            <Button
+              onClick={() => startCall(otherUser, false)}
               className="size-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer hover:scale-105 transition-transform"
               size="icon"
             >

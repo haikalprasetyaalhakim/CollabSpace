@@ -27,6 +27,7 @@ import { PendingImage } from "@/types/message";
 import {
   ImageIcon,
   Pencil,
+  PhoneMissed,
   Reply,
   Send,
   SmilePlus,
@@ -43,6 +44,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import UserProfileCard from "@/components/user-profile-card";
+import { useCall } from "@/features/calls/context/call-context";
 
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);
@@ -79,6 +81,8 @@ export function DmView({
   initialOtherLastReadAt,
 }: Props) {
   const { markConversationRead, clearConversationMentions } = useUnread();
+
+  const { callState, incomingMessages } = useCall();
 
   const [messages, setMessages] =
     useState<DmMessageWithUser[]>(initialMessages);
@@ -144,6 +148,45 @@ export function DmView({
       console.error("[deleteUploadedFiles] Failed:", err);
     });
   };
+
+  useEffect(() => {
+    if (!incomingMessages.has(conversationId)) return;
+
+    const msgs = incomingMessages.get(conversationId) ?? [];
+    const lastMessage = msgs[msgs.length - 1];
+    if (!lastMessage || lastMessage.type !== "MISSED_CALL") return;
+
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === lastMessage.id)) return prev;
+      return [...prev, lastMessage];
+    });
+  }, [conversationId, incomingMessages]);
+
+  useEffect(() => {
+    if (callState !== "unanswered") return;
+
+    const tempId = crypto.randomUUID();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        type: "MISSED_CALL",
+        content: null,
+        conversationId,
+        userId: session?.user.id!,
+        createdAt: new Date(),
+        directMessageReactions: [],
+        replyToId: null,
+        replyTo: null,
+        images: [],
+        user: {
+          id: session?.user.id!,
+          name: session?.user.name!,
+          image: session?.user.image ?? null,
+        },
+      },
+    ]);
+  }, [callState]);
 
   useEffect(() => {
     revokeAllRef.current = () => {
@@ -389,6 +432,7 @@ export function DmView({
       ...prev,
       {
         id: tempId,
+        type: "TEXT",
         content: input.trim() ?? null,
         conversationId,
         userId: session?.user.id!,
@@ -762,6 +806,20 @@ function MessageItem({
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  if (message.type === "MISSED_CALL") {
+    return (
+      <div className="flex items-center gap-3 px-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg px-3 py-2">
+          <PhoneMissed className="size-4 text-red-400 shrink-0" />
+          <span>Missed Call</span>
+          <span className="text-xs ml-1" suppressHydrationWarning>
+            {time}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

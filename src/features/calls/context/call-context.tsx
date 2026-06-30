@@ -1,9 +1,15 @@
 "use client";
 
+import { DmMessageWithUser } from "@/features/dm/queries/get-dm-messages";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import CallOverlay from "../components/call-overlay";
 
-export type CallState = "idle" | "calling" | "ringing" | "connected";
+export type CallState =
+  | "idle"
+  | "calling"
+  | "ringing"
+  | "connected"
+  | "unanswered";
 
 type CallUser = {
   id: string;
@@ -19,11 +25,13 @@ type CallContextType = {
   remoteStream: MediaStream | null;
   isRemoteMuted: boolean;
   isRemoteCameraOff: boolean;
+  incomingMessages: Map<string, DmMessageWithUser[]>;
   sendControlMessage: (msg: object) => void;
   startCall: (user: CallUser, isVideo: boolean) => void;
   acceptCall: () => void;
   declineCall: () => void;
   endCall: () => void;
+  dismissCall: () => void;
 };
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -41,6 +49,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [callState, setCallState] = useState<CallState>("idle");
   const [isVideo, setIsVideo] = useState(false);
   const [otherUser, setOtherUser] = useState<CallUser | null>(null);
+  const [incomingMessages, setIncomingMessages] = useState<
+    Map<string, DmMessageWithUser[]>
+  >(new Map());
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -52,6 +63,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const incomingOfferRef = useRef<any>(null);
   const iceCandidatesQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const eventSource = new EventSource("/api/notifications");
@@ -104,6 +116,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (data.type === "call-hangup") {
         cleanupCall();
       }
+
+      if (data.type === "new-direct-message") {
+        setIncomingMessages((prev) => {
+          const newMap = new Map(prev);
+          const existing = newMap.get(data.conversationId) ?? [];
+          newMap.set(data.conversationId, [...existing, data.message]);
+          return newMap;
+        });
+      }
     };
 
     eventSource.onerror = () => {
@@ -112,6 +133,56 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     return () => eventSource.close();
   }, []);
+
+  useEffect(() => {
+    if (callState !== "calling") {
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    const targetUserId = otherUser?.id;
+    if (!targetUserId) return;
+
+    callTimeoutRef.current = setTimeout(async () => {
+      await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId,
+          type: "hangup",
+        }),
+      });
+
+      await fetch("/api/calls/missed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId }),
+      });
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+      }
+
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+
+      setLocalStream(null);
+      setCallState("unanswered");
+    }, 20000);
+
+    return () => {
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+    };
+  }, [callState, otherUser]);
 
   const sendSignal = async (
     type: "offer" | "answer" | "ice-candidate" | "hangup" | "reject",
@@ -145,6 +216,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
       localStreamRef.current = null;
     }
+
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+
     setCallState("idle");
     setOtherUser(null);
     setLocalStream(null);
@@ -284,6 +361,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     cleanupCall();
   };
 
+  const dismissCall = () => {
+    setCallState("idle");
+    setOtherUser(null);
+  };
+
   return (
     <CallContext.Provider
       value={{
@@ -294,11 +376,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         remoteStream,
         isRemoteMuted,
         isRemoteCameraOff,
+        incomingMessages,
         sendControlMessage,
         startCall,
         acceptCall,
         declineCall,
         endCall,
+        dismissCall,
       }}
     >
       {children}
