@@ -11,37 +11,45 @@ import {
 } from "@/components/ui/sidebar";
 import BrowserChannelsDialog from "@/features/channels/components/browser-channels-dialog";
 import CreateChannelDialog from "@/features/channels/components/create-channel-dialog";
+import { ChannelType } from "@/generated/prisma/enums";
 import { useUnread } from "@/hooks/use-unread";
-import { Hash, Plus } from "lucide-react";
+import { Hash, Plus, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useState } from "react";
 
-type Channel = { id: string; name: string };
+type Channel = { id: string; name: string; type: ChannelType };
 
 export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const pathname = usePathname();
   const params = useParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
+  const [dialogType, setDialogType] = useState<"TEXT" | "VOICE">("TEXT");
 
   const { channelUnread, mentionedChannels } = useUnread();
 
   const workspaceId = params.workspaceId as string;
 
+  const textChannels = channels.filter((c) => c.type === "TEXT");
+  const voiceChannels = channels.filter((c) => c.type === "VOICE");
+
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupLabel>Channels</SidebarGroupLabel>
+        <SidebarGroupLabel>Text Channels</SidebarGroupLabel>
         <SidebarGroupAction
           title="Add channel"
-          onClick={() => setDialogOpen(true)}
+          onClick={() => {
+            setDialogType("TEXT");
+            setDialogOpen(true);
+          }}
         >
           <Plus className="size-3.5" />
         </SidebarGroupAction>
         <SidebarGroupContent>
           <SidebarMenu>
-            {channels.map((channel) => {
+            {textChannels.map((channel) => {
               const firstMentionId = mentionedChannels.get(channel.id)
                 ? [...mentionedChannels.get(channel.id)!][0]
                 : null;
@@ -86,7 +94,7 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
               );
             })}
 
-            {channels.length === 0 && (
+            {textChannels.length === 0 && (
               <p className="text-xs text-zinc-400 px-2 py-1">No channels yet</p>
             )}
           </SidebarMenu>
@@ -101,7 +109,54 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
         </div>
       </SidebarGroup>
 
-      <CreateChannelDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <SidebarGroup>
+        <SidebarGroupLabel>Voice Channels</SidebarGroupLabel>
+        <SidebarGroupAction
+          title="Add voice channel"
+          onClick={() => {
+            setDialogType("VOICE");
+            setDialogOpen(true);
+          }}
+        >
+          <Plus className="size-3.5" />
+        </SidebarGroupAction>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {voiceChannels.map((channel) => (
+              <SidebarMenuItem key={channel.id}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={channel.name}
+                  isActive={
+                    pathname ===
+                    `/workspaces/${workspaceId}/channels/${channel.id}`
+                  }
+                >
+                  <Link
+                    href={`/workspaces/${workspaceId}/channels/${channel.id}`}
+                    className="flex items-center gap-2"
+                  >
+                    <Volume2 className="shrink-0" />
+                    <span className="truncate">{channel.name}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+            {voiceChannels.length === 0 && (
+              <p className="text-xs text-zinc-400 px-2 py-1">
+                No voice channels
+              </p>
+            )}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <CreateChannelDialog
+        key={dialogType}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        defaultType={dialogType}
+      />
       <BrowserChannelsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
     </>
   );

@@ -19,6 +19,11 @@ enum DirectMessageType {
   MISSED_CALL
 }
 
+enum ChannelType {
+  TEXT
+  VOICE
+}
+
 model User {
   id            String    @id
   name          String
@@ -107,6 +112,7 @@ model Channel {
   id             String          @id @default(cuid())
   name           String
   description    String?
+  type           ChannelType     @default(TEXT)
   ownerId        String?
   owner          User?           @relation("ChannelOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   workspaceId    String

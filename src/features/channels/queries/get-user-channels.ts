@@ -18,7 +18,7 @@ export async function getUserChannels(workspaceId: string) {
     },
     include: {
       channel: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, type: true },
       },
     },
     orderBy: { joinedAt: "asc" },

@@ -10,6 +10,7 @@ export async function createChannel(
   data: {
     name: string;
     description?: string;
+    type?: "TEXT" | "VOICE";
   },
   workspaceId: string,
 ): Promise<ActionResult<{ id: string }>> {
@@ -19,7 +20,10 @@ export async function createChannel(
     });
     if (!session) return { success: false, error: "Not authenticated" };
 
-    const name = data.name.trim().toLowerCase().replace(/\s+/g, "-");
+    const isVoice = data.type === "VOICE";
+    const name = isVoice
+      ? data.name.trim()
+      : data.name.trim().toLowerCase().replace(/\s+/g, "-");
     if (!name) return { success: false, error: "Channel name is required" };
     if (name.length > 80) return { success: false, error: "Name too long." };
 
@@ -33,6 +37,7 @@ export async function createChannel(
         data: {
           name,
           description: data.description?.trim() || null,
+          type: data.type ?? "TEXT",
           ownerId: session.user.id,
           workspaceId,
         },
