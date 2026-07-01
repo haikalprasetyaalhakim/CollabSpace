@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -13,10 +14,20 @@ import BrowserChannelsDialog from "@/features/channels/components/browser-channe
 import CreateChannelDialog from "@/features/channels/components/create-channel-dialog";
 import { ChannelType } from "@/generated/prisma/enums";
 import { useUnread } from "@/hooks/use-unread";
-import { Hash, Plus, Volume2 } from "lucide-react";
+import { getInitials } from "@/lib/utils";
+import { Hash, MicOff, Plus, Video, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type VoiceParticipant = {
+  id: string;
+  name: string;
+  image: string | null;
+  isMuted: boolean;
+  isCameraOff: boolean;
+  isSpeaking: boolean;
+};
 
 type Channel = { id: string; name: string; type: ChannelType };
 
@@ -33,6 +44,70 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
 
   const textChannels = channels.filter((c) => c.type === "TEXT");
   const voiceChannels = channels.filter((c) => c.type === "VOICE");
+
+  const firstVoiceChannelId = voiceChannels[0]?.id ?? "mock-channel-id";
+
+  const [activeVoiceUsers, setActiveVoiceUsers] = useState<
+    Record<string, VoiceParticipant[]>
+  >({
+    [firstVoiceChannelId]: [
+      {
+        id: "mock-user-1",
+        name: "Ahmad",
+        image: null,
+        isMuted: true,
+        isCameraOff: true,
+        isSpeaking: false,
+      },
+    ],
+  });
+
+  useEffect(() => {
+    const handleVoiceState = (e: Event) => {
+      const { channelId, isConnected, isMuted, isCameraOff, isSpeaking, user } =
+        (e as CustomEvent).detail;
+
+      setActiveVoiceUsers((prev) => {
+        const withoutMe = (prev[channelId] ?? []).filter(
+          (u) => u.id !== (user.id as string),
+        );
+
+        if (!isConnected) {
+          return {
+            ...prev,
+            [channelId]: withoutMe,
+          };
+        }
+
+        return {
+          ...prev,
+          [channelId]: [
+            ...withoutMe,
+            {
+              id: user.id,
+              name: user.name,
+              image: user.image,
+              isMuted,
+              isCameraOff,
+              isSpeaking,
+            },
+          ],
+        };
+      });
+    };
+
+    window.addEventListener(
+      "voice-state-change",
+      handleVoiceState as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "voice-state-change",
+        handleVoiceState as EventListener,
+      );
+    };
+  }, []);
 
   return (
     <>
@@ -122,26 +197,79 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
         </SidebarGroupAction>
         <SidebarGroupContent>
           <SidebarMenu>
-            {voiceChannels.map((channel) => (
-              <SidebarMenuItem key={channel.id}>
-                <SidebarMenuButton
-                  asChild
-                  tooltip={channel.name}
-                  isActive={
-                    pathname ===
-                    `/workspaces/${workspaceId}/channels/${channel.id}`
-                  }
-                >
-                  <Link
-                    href={`/workspaces/${workspaceId}/channels/${channel.id}`}
-                    className="flex items-center gap-2"
+            {voiceChannels.map((channel) => {
+              const participants = activeVoiceUsers[channel.id] ?? [];
+
+              return (
+                <SidebarMenuItem key={channel.id}>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={channel.name}
+                    isActive={
+                      pathname ===
+                      `/workspaces/${workspaceId}/channels/${channel.id}`
+                    }
                   >
-                    <Volume2 className="shrink-0" />
-                    <span className="truncate">{channel.name}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+                    <Link
+                      href={`/workspaces/${workspaceId}/channels/${channel.id}`}
+                      className="flex items-center gap-2"
+                    >
+                      <Volume2 className="shrink-0" />
+                      <span className="truncate">{channel.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+
+                  {participants.length > 0 && (
+                    <div className="pl-6 pr-2 py-1 flex flex-col gap-1.5 mt-0.5 select-none">
+                      {participants.map((user) => {
+                        return (
+                          <div
+                            key={user.id}
+                            className="flex items-center justify-between group/member px-2 py-0.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/30 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div
+                                className={`relative rounded-full p-0.5 transition-all ${
+                                  user.isSpeaking
+                                    ? "ring-2 ring-emerald-500/80 bg-emerald-500/10"
+                                    : ""
+                                }`}
+                              >
+                                <Avatar className="size-4.5">
+                                  <AvatarImage src={user.image ?? ""} />
+                                  <AvatarFallback className="text-[8px] bg-zinc-800 text-zinc-300 font-bold">
+                                    {getInitials(user.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+
+                              <span
+                                className={`text-[11px] truncate transition-colors ${
+                                  user.isSpeaking
+                                    ? "text-emerald-400 font-medium animate-pulse"
+                                    : "text-zinc-400 group-hover/member:text-zinc-200"
+                                }`}
+                              >
+                                {user.name}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1 opacity-70 group-hover/member:opacity-100 transition-opacity shrink-0">
+                              {user.isMuted && (
+                                <MicOff className="size-3 text-red-500" />
+                              )}
+                              {!user.isCameraOff && (
+                                <Video className="size-3 text-emerald-500" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </SidebarMenuItem>
+              );
+            })}
             {voiceChannels.length === 0 && (
               <p className="text-xs text-zinc-400 px-2 py-1">
                 No voice channels

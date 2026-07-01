@@ -53,9 +53,98 @@ export default function VoiceChannelView({
   >(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (!isConnected || isMuted || !localStream) {
+      setIsSpeaking(false);
+      return;
+    }
+
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
+
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let source: MediaStreamAudioSourceNode | null = null;
+    let animationFrameId: number;
+
+    try {
+      const AudioContextClass =
+        window.AudioContext || (window as any).webkitAudioContext;
+      audioContext = new AudioContextClass();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+
+      source = audioContext.createMediaStreamSource(localStream);
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const checkVolume = () => {
+        if (!analyser) return;
+
+        analyser.getByteFrequencyData(dataArray);
+
+        let total = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          total += dataArray[i];
+        }
+        const averageVolume = total / bufferLength;
+
+        setIsSpeaking(averageVolume > 15);
+
+        animationFrameId = requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
+    } catch (error) {
+      console.error("Audio detection error:", error);
+    }
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      if (source) source.disconnect();
+      if (analyser) analyser.disconnect();
+      if (audioContext && audioContext.state !== "closed") {
+        audioContext.close();
+      }
+    };
+  }, [isConnected, isMuted, localStream]);
+
+  useEffect(() => {
+    const user = members.find((m) => m.id === currentUserId);
+    if (!user) return;
+
+    const event = new CustomEvent("voice-state-change", {
+      detail: {
+        channelId,
+        isConnected,
+        isMuted,
+        isCameraOff,
+        isSpeaking,
+        user: {
+          id: user.id,
+          name: user.name,
+          image: user.image,
+        },
+      },
+    });
+
+    window.dispatchEvent(event);
+  }, [
+    isConnected,
+    isMuted,
+    isCameraOff,
+    isSpeaking,
+    channelId,
+    currentUserId,
+    members,
+  ]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -208,11 +297,20 @@ export default function VoiceChannelView({
                 ? "h-full aspect-video shrink-0"
                 : "flex-1 aspect-video w-full"
             } ${
-              focusedCardId === "user-cam" && !isMini
-                ? "border-zinc-500 shadow-lg shadow-zinc-500/5"
-                : "border-zinc-800 hover:border-zinc-700"
+              isSpeaking && !isMuted
+                ? "border-emerald-500 ring-2 ring-emerald-500/20 shadow-md shadow-emerald-500/10"
+                : focusedCardId === "user-cam" && !isMini
+                  ? "border-zinc-500 shadow-lg shadow-zinc-500/5"
+                  : "border-zinc-800 hover:border-zinc-700"
             }`}
           >
+            {isSpeaking && !isMuted && (
+              <div className="absolute top-3 right-3 flex items-end gap-0.5 h-3 z-20">
+                <span className="w-0.5 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-0.5 h-3 rounded-full bg-emerald-400 animate-pulse [animation-delay:150ms]" />
+                <span className="w-0.5 h-1.5 rounded-full bg-emerald-400 animate-pulse [animation-delay:300ms]" />
+              </div>
+            )}
             {!isCameraOff && localStream ? (
               <video
                 ref={localVideoRef}
