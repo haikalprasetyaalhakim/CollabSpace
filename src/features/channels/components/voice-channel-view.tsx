@@ -436,6 +436,8 @@ export default function VoiceChannelView({
 
   const hasAnyScreen = screenStream !== null || remoteScreenOwnerName !== null;
   const isFocusActive = focusedCardId !== null && hasAnyScreen;
+  const totalActiveCards =
+    1 + (screenStream ? 1 : 0) + (remoteScreenOwnerName ? 1 : 0);
 
   if (!isMounted) {
     return (
@@ -494,7 +496,15 @@ export default function VoiceChannelView({
         ) : (
           <div className="flex-1 flex flex-col p-6 min-h-0 justify-between">
             {!isFocusActive ? (
-              <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto mb-6">
+              <div
+                className={`flex-1 min-h-0 transition-all duration-500 ease-in-out mb-6 ${
+                  totalActiveCards === 1
+                    ? "flex items-center justify-center max-w-3xl mx-auto w-full"
+                    : totalActiveCards === 2
+                      ? "grid grid-cols-1 sm:grid-cols-2 gap-4 items-center max-w-5xl mx-auto w-full"
+                      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-center w-full"
+                }`}
+              >
                 {renderUserCamCard()}
                 {renderUserScreenCard()}
 
@@ -507,7 +517,7 @@ export default function VoiceChannelView({
                           : "remote-screen",
                       )
                     }
-                    className="relative aspect-video rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all"
+                    className="relative aspect-video rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all duration-500 w-full"
                   >
                     <ScreenShare className="size-10 text-zinc-700 animate-pulse mb-2" />
                     <span className="text-xs text-zinc-400">
