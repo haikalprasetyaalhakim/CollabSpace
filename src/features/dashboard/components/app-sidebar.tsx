@@ -10,8 +10,9 @@ import SidebarChannels from "./sidebar/sidebar-channels";
 import SidebarDirectMessages from "./sidebar/sidebar-direct-messages";
 import SidebarFooterSection from "./sidebar/sidebar-footer-section";
 import { ConversationWithUser } from "@/features/dm/queries/get-user-conversations";
+import { ChannelType } from "@/generated/prisma/enums";
 
-type Channel = { id: string; name: string };
+type Channel = { id: string; name: string; type: ChannelType };
 
 type Props = {
   activeWorkspace: {

@@ -9,20 +9,21 @@ export async function getUserChannels(workspaceId: string) {
 
   if (!session) return [];
 
-  const memberships = await prisma.channelMember.findMany({
+  const isWorkspaceMember = await prisma.workspaceMember.findUnique({
     where: {
-      userId: session.user.id,
-      channel: {
-        workspaceId: workspaceId,
+      workspaceId_userId: {
+        workspaceId,
+        userId: session.user.id,
       },
     },
-    include: {
-      channel: {
-        select: { id: true, name: true, type: true },
-      },
-    },
-    orderBy: { joinedAt: "asc" },
+  });
+  if (!isWorkspaceMember) return [];
+
+  const channels = await prisma.channel.findMany({
+    where: { workspaceId },
+    select: { id: true, name: true, type: true },
+    orderBy: { createdAt: "asc" },
   });
 
-  return memberships.map((m) => m.channel);
+  return channels;
 }

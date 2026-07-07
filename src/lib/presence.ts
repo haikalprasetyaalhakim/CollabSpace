@@ -2,7 +2,9 @@ const globalForPresence = global as unknown as {
   onlineUsers: Map<string, number>;
   presenceSubscribers: Map<string, Set<ReadableStreamDefaultController>>;
   userStatuses: Map<string, string>;
+  activeVoiceChannels: Map<string, string>;
 };
+
 export const onlineUsers =
   globalForPresence.onlineUsers || new Map<string, number>();
 export const presenceSubscribers =
@@ -10,10 +12,14 @@ export const presenceSubscribers =
   new Map<string, Set<ReadableStreamDefaultController>>();
 export const userStatuses =
   globalForPresence.userStatuses || new Map<string, string>();
+export const activeVoiceChannels =
+  globalForPresence.activeVoiceChannels || new Map<string, string>();
+
 if (process.env.NODE_ENV !== "production") {
   globalForPresence.onlineUsers = onlineUsers;
   globalForPresence.presenceSubscribers = presenceSubscribers;
   globalForPresence.userStatuses = userStatuses;
+  globalForPresence.activeVoiceChannels = activeVoiceChannels;
 }
 
 export function userConnected(
@@ -39,6 +45,7 @@ export function userDisconnected(
   if (count <= 1) {
     onlineUsers.delete(userId);
     userStatuses.delete(userId);
+    activeVoiceChannels.delete(userId);
   } else {
     onlineUsers.set(userId, count - 1);
   }
@@ -65,11 +72,24 @@ export function updateUserStatus(userId: string, status: string): void {
   }
 }
 
+export function userJoinedVoice(userId: string, channelId: string): void {
+  activeVoiceChannels.set(userId, channelId);
+  broadcastPresence();
+}
+
+export function userLeftVoice(userId: string) {
+  if (activeVoiceChannels.get(userId)) {
+    activeVoiceChannels.delete(userId);
+    broadcastPresence();
+  }
+}
+
 function broadcastPresence(): void {
   const payload = JSON.stringify({
     type: "presence",
     onlineUserIds: getOnlineUserIds(),
     userStatuses: Object.fromEntries(userStatuses),
+    activeVoiceChannels: Object.fromEntries(activeVoiceChannels),
   });
 
   const encoded = new TextEncoder().encode(`data: ${payload}\n\n`);

@@ -10,6 +10,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Slider } from "@/components/ui/slider";
+import { usePresence } from "@/hooks/use-presence";
 import { getInitials } from "@/lib/utils";
 import {
   Mic,
@@ -54,6 +55,224 @@ export default function VoiceChannelView({
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const { activeVoiceChannels } = usePresence();
+  const [remoteStreams, setRemoteStreams] = useState<
+    Record<string, MediaStream>
+  >({});
+  const [remoteVideoEnabled, setRemoteVideoEnabled] = useState<
+    Record<string, boolean>
+  >({});
+
+  const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
+  const iceCandidateQueues = useRef<Record<string, RTCIceCandidate[]>>({});
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  const createPeerConnection = (peerId: string) => {
+    if (pcsRef.current[peerId]) return pcsRef.current[peerId];
+
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+    });
+
+    const stream = localStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+    }
+
+    pcsRef.current[peerId] = pc;
+
+    pc.onconnectionstatechange = () => {
+      console.log(`🔗 Connection state to ${peerId}: ${pc.connectionState}`);
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        fetch("/api/channels/voice-signal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetUserId: peerId,
+            channelId,
+            type: "ice-candidate",
+            data: event.candidate,
+          }),
+        });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      console.log(`🎥 ontrack triggered from peer: ${peerId}`, event.streams);
+      const remoteStream = event.streams[0];
+      if (remoteStream) {
+        setRemoteStreams((prev) => ({ ...prev, [peerId]: remoteStream }));
+      }
+
+      const track = event.track;
+      if (track.kind === "video") {
+        setRemoteVideoEnabled((prev) => ({ ...prev, [peerId]: !track.muted }));
+
+        track.onmute = () => {
+          setRemoteVideoEnabled((prev) => ({ ...prev, [peerId]: false }));
+        };
+
+        track.onunmute = () => {
+          setRemoteVideoEnabled((prev) => ({ ...prev, [peerId]: true }));
+        };
+      }
+    };
+
+    return pc;
+  };
+
+  useEffect(() => {
+    localStreamRef.current = localStream;
+
+    if (!localStream) return;
+
+    const localVideoTrack = localStream.getVideoTracks()[0] ?? null;
+
+    Object.values(pcsRef.current).forEach((pc) => {
+      const senders = pc.getSenders();
+
+      localStream.getTracks().forEach((track) => {
+        const existingSender = senders.find(
+          (s) => s.track?.kind === track.kind,
+        );
+        if (existingSender) {
+          existingSender.replaceTrack(track);
+        } else {
+          pc.addTrack(track, localStream);
+        }
+      });
+
+      const videoSender = senders.find((s) => s.track?.kind === "video");
+      if (videoSender && !localVideoTrack) {
+        videoSender.replaceTrack(null);
+      }
+    });
+  }, [localStream]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    activePeerIds.forEach(async (peerId) => {
+      if (currentUserId < peerId) {
+        if (!pcsRef.current[peerId]) {
+          const pc = createPeerConnection(peerId);
+
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            await fetch("/api/channels/voice-signal", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                targetUserId: peerId,
+                channelId,
+                type: "offer",
+                data: offer,
+              }),
+            });
+
+            console.log(`📤 Successfully sent Offer to peer: ${peerId}`);
+          } catch (error) {
+            console.error(`Failed to create offer to ${peerId}:`, error);
+          }
+        }
+      }
+    });
+  }, [isConnected, activeVoiceChannels, currentUserId, channelId]);
+
+  useEffect(() => {
+    const handleVoiceOffer = async (e: Event) => {
+      const { senderId, data: offer } = (e as CustomEvent).detail;
+
+      const pc = createPeerConnection(senderId);
+
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        await fetch("/api/channels/voice-signal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetUserId: senderId,
+            channelId,
+            type: "answer",
+            data: answer,
+          }),
+        });
+
+        const queue = iceCandidateQueues.current[senderId] ?? [];
+        for (const candidate of queue) {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+        iceCandidateQueues.current[senderId] = [];
+      } catch (error) {
+        console.error(`Failed to respond to offer from ${senderId}:`, error);
+      }
+    };
+
+    const handleVoiceAnswer = async (e: Event) => {
+      const { senderId, data: answer } = (e as CustomEvent).detail;
+
+      const pc = pcsRef.current[senderId];
+      if (pc) {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log(
+            `✅ CALLER: Connection locked (connected) with peer: ${senderId}`,
+          );
+
+          const queue = iceCandidateQueues.current[senderId] ?? [];
+          for (const candidate of queue) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+          iceCandidateQueues.current[senderId] = [];
+        } catch (error) {
+          console.error(`Failed to lock connection with ${senderId}:`, error);
+        }
+      }
+    };
+
+    const handleVoiceIceCandidate = async (e: Event) => {
+      const { senderId, data: candidate } = (e as CustomEvent).detail;
+      const pc = pcsRef.current[senderId];
+
+      if (!pc || !pc.remoteDescription) {
+        if (!iceCandidateQueues.current[senderId]) {
+          iceCandidateQueues.current[senderId] = [];
+        }
+        iceCandidateQueues.current[senderId].push(candidate);
+        return;
+      }
+
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    };
+
+    window.addEventListener("voice-offer", handleVoiceOffer);
+    window.addEventListener("voice-answer", handleVoiceAnswer);
+    window.addEventListener("voice-ice-candidate", handleVoiceIceCandidate);
+
+    return () => {
+      window.removeEventListener("voice-offer", handleVoiceOffer);
+      window.removeEventListener("voice-answer", handleVoiceAnswer);
+    };
+  }, [channelId]);
+
+  const activePeerIds = Array.from(activeVoiceChannels.entries())
+    .filter(([uid, cid]) => cid === channelId && uid !== currentUserId)
+    .map(([uid]) => uid);
+
+  useEffect(() => {
+    console.log("👥 Other active members in this voice room:", activePeerIds);
+  }, [activePeerIds]);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
@@ -147,6 +366,24 @@ export default function VoiceChannelView({
   ]);
 
   useEffect(() => {
+    if (!isConnected) return;
+
+    fetch("/api/channels/voice-presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channelId, action: "join" }),
+    });
+
+    return () => {
+      fetch("/api/channels/voice-presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelId, action: "leave" }),
+      });
+    };
+  }, [isConnected, channelId]);
+
+  useEffect(() => {
     setIsMounted(true);
 
     const isDisconnected = sessionStorage.getItem(
@@ -174,7 +411,18 @@ export default function VoiceChannelView({
         });
         setLocalStream(stream);
       } catch (error) {
-        console.error("Failed to get access Camera/Mic", error);
+        console.error(
+          "Camera/Mic had been using to another browser, try to access mic only",
+          error,
+        );
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          setLocalStream(audioStream);
+        } catch (error) {
+          console.error("Failed to get access mic");
+        }
       }
     })();
 
@@ -311,7 +559,9 @@ export default function VoiceChannelView({
                 <span className="w-0.5 h-1.5 rounded-full bg-emerald-400 animate-pulse [animation-delay:300ms]" />
               </div>
             )}
-            {!isCameraOff && localStream ? (
+            {!isCameraOff &&
+            localStream &&
+            localStream.getVideoTracks().length > 0 ? (
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -437,7 +687,10 @@ export default function VoiceChannelView({
   const hasAnyScreen = screenStream !== null || remoteScreenOwnerName !== null;
   const isFocusActive = focusedCardId !== null && hasAnyScreen;
   const totalActiveCards =
-    1 + (screenStream ? 1 : 0) + (remoteScreenOwnerName ? 1 : 0);
+    1 +
+    activePeerIds.length +
+    (screenStream ? 1 : 0) +
+    (remoteScreenOwnerName ? 1 : 0);
 
   if (!isMounted) {
     return (
@@ -506,6 +759,44 @@ export default function VoiceChannelView({
                 }`}
               >
                 {renderUserCamCard()}
+                {!!activePeerIds.length &&
+                  activePeerIds.map((peerId) => {
+                    const peer = members.find((m) => m.id === peerId);
+                    const peerInitials = peer ? getInitials(peer.name) : "U";
+                    const stream = remoteStreams[peerId];
+                    const isVideoOn = remoteVideoEnabled[peerId] ?? false;
+
+                    return (
+                      <div
+                        key={peerId}
+                        className="relative aspect-video rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden w-full flex items-center justify-center"
+                      >
+                        {isVideoOn && stream ? (
+                          <video
+                            autoPlay
+                            playsInline
+                            ref={(el) => {
+                              if (el) el.srcObject = stream;
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Avatar className="size-16">
+                            <AvatarImage src={peer?.image ?? ""} />
+                            <AvatarFallback className="bg-zinc-800 text-lg font-bold text-zinc-300">
+                              {peerInitials}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+
+                        <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md">
+                          <span className="text-xs font-medium text-zinc-200">
+                            {peer?.name ?? peerId.slice(0, 8)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 {renderUserScreenCard()}
 
                 {remoteScreenOwnerName && (

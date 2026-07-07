@@ -7,11 +7,13 @@ import { toast } from "sonner";
 type PresenceData = {
   onlineUserIds: Set<string>;
   userStatuses: Map<string, string>;
+  activeVoiceChannels: Map<string, string>;
 };
 
 const PresenceContext = createContext<PresenceData>({
   onlineUserIds: new Set(),
   userStatuses: new Map(),
+  activeVoiceChannels: new Map(),
 });
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
@@ -19,6 +21,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const [userStatuses, setUserStatuses] = useState<Map<string, string>>(
     new Map(),
   );
+  const [activeVoiceChannels, setActiveVoiceChannels] = useState<
+    Map<string, string>
+  >(new Map());
 
   const router = useRouter();
   const params = useParams();
@@ -32,6 +37,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       if (data.type === "presence") {
         setOnlineUserIds(new Set(data.onlineUserIds as string[]));
         setUserStatuses(new Map(Object.entries(data.userStatuses ?? {})));
+        setActiveVoiceChannels(
+          new Map(Object.entries(data.activeVoiceChannels ?? {})),
+        );
       } else if (
         data.type === "kick" &&
         data.workspaceId == currentWorkspaceId
@@ -39,6 +47,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         toast.error("You've been kicked from this workspace");
         router.push("/dashboard");
         router.refresh();
+      } else if (data.type && data.type.startsWith("voice-")) {
+        window.dispatchEvent(new CustomEvent(data.type, { detail: data }));
       }
     };
 
@@ -54,6 +64,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       value={{
         onlineUserIds,
         userStatuses,
+        activeVoiceChannels,
       }}
     >
       {children}

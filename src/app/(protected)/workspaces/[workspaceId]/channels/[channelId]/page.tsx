@@ -49,7 +49,26 @@ export default async function Page({ params, searchParams }: Props) {
   ]);
 
   if (!channel) notFound();
-  if (!membership) redirect(`/workspaces/${workspaceId}`);
+
+  if (!membership) {
+    const isWorkspaceMember = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId: session.user.id,
+        },
+      },
+    });
+
+    if (!isWorkspaceMember) return redirect(`/workspaces/${workspaceId}`);
+
+    await prisma.channelMember.create({
+      data: {
+        userId: session.user.id,
+        channelId,
+      },
+    });
+  }
 
   if (channel.type === "VOICE") {
     const members = await prisma.channelMember.findMany({
