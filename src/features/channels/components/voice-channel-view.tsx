@@ -21,7 +21,7 @@ import {
   VideoOff,
   Volume2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type User = {
   id: string;
@@ -108,19 +108,6 @@ export default function VoiceChannelView({
       if (remoteStream) {
         setRemoteStreams((prev) => ({ ...prev, [peerId]: remoteStream }));
       }
-
-      const track = event.track;
-      if (track.kind === "video") {
-        setRemoteVideoEnabled((prev) => ({ ...prev, [peerId]: !track.muted }));
-
-        track.onmute = () => {
-          setRemoteVideoEnabled((prev) => ({ ...prev, [peerId]: false }));
-        };
-
-        track.onunmute = () => {
-          setRemoteVideoEnabled((prev) => ({ ...prev, [peerId]: true }));
-        };
-      }
     };
 
     return pc;
@@ -134,22 +121,25 @@ export default function VoiceChannelView({
     const localVideoTrack = localStream.getVideoTracks()[0] ?? null;
 
     Object.values(pcsRef.current).forEach((pc) => {
-      const senders = pc.getSenders();
+      const transceivers = pc.getTransceivers();
 
       localStream.getTracks().forEach((track) => {
-        const existingSender = senders.find(
-          (s) => s.track?.kind === track.kind,
+        const transceiver = transceivers.find(
+          (t) => t.receiver.track.kind === track.kind,
         );
-        if (existingSender) {
-          existingSender.replaceTrack(track);
+
+        if (transceiver && transceiver.sender) {
+          transceiver.sender.replaceTrack(track);
         } else {
           pc.addTrack(track, localStream);
         }
       });
 
-      const videoSender = senders.find((s) => s.track?.kind === "video");
-      if (videoSender && !localVideoTrack) {
-        videoSender.replaceTrack(null);
+      const videoTransceiver = transceivers.find(
+        (t) => t.receiver.track.kind === "video",
+      );
+      if (videoTransceiver && videoTransceiver.sender && !localVideoTrack) {
+        videoTransceiver.sender.replaceTrack(null);
       }
     });
   }, [localStream]);
@@ -256,19 +246,35 @@ export default function VoiceChannelView({
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
     };
 
+    const handleVoiceCameraToggle = (e: Event) => {
+      const { senderId, data } = (e as CustomEvent).detail;
+      const { isCameraOff: peerCameraOff } = data;
+      setRemoteVideoEnabled((prev) => ({
+        ...prev,
+        [senderId]: !peerCameraOff,
+      }));
+    };
+
     window.addEventListener("voice-offer", handleVoiceOffer);
     window.addEventListener("voice-answer", handleVoiceAnswer);
     window.addEventListener("voice-ice-candidate", handleVoiceIceCandidate);
+    window.addEventListener("voice-camera-toggle", handleVoiceCameraToggle);
 
     return () => {
       window.removeEventListener("voice-offer", handleVoiceOffer);
       window.removeEventListener("voice-answer", handleVoiceAnswer);
+      window.removeEventListener(
+        "voice-camera-toggle",
+        handleVoiceCameraToggle,
+      );
     };
   }, [channelId]);
 
-  const activePeerIds = Array.from(activeVoiceChannels.entries())
-    .filter(([uid, cid]) => cid === channelId && uid !== currentUserId)
-    .map(([uid]) => uid);
+  const activePeerIds = useMemo(() => {
+    return Array.from(activeVoiceChannels.entries())
+      .filter(([uid, cid]) => cid === channelId && uid !== currentUserId)
+      .map(([uid]) => uid);
+  }, [activeVoiceChannels, channelId, currentUserId]);
 
   useEffect(() => {
     console.log("👥 Other active members in this voice room:", activePeerIds);
@@ -420,6 +426,7 @@ export default function VoiceChannelView({
             audio: true,
           });
           setLocalStream(audioStream);
+          setIsCameraOff(true);
         } catch (error) {
           console.error("Failed to get access mic");
         }
@@ -440,6 +447,23 @@ export default function VoiceChannelView({
       });
     }
   }, [isMuted, localStream]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    activePeerIds.forEach((peerId) => {
+      fetch("/api/channels/voice-signal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: peerId,
+          channelId,
+          type: "camera-toggle",
+          data: { isCameraOff },
+        }),
+      });
+    });
+  }, [isConnected, isCameraOff, activePeerIds, channelId]);
 
   useEffect(() => {
     if (!localStream) return;

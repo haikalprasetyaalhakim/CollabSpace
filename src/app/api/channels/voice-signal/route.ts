@@ -7,7 +7,14 @@ import z from "zod";
 const VoiceSignalSchema = z.object({
   targetUserId: z.string().min(1, "Target User ID is required"),
   channelId: z.string().min(1, "Channel ID is required"),
-  type: z.enum(["offer", "answer", "ice-candidate", "join", "leave"]),
+  type: z.enum([
+    "offer",
+    "answer",
+    "ice-candidate",
+    "join",
+    "leave",
+    "camera-toggle",
+  ]),
   data: z.any().optional(),
 });
 
