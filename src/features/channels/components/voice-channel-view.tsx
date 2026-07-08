@@ -55,17 +55,19 @@ export default function VoiceChannelView({
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const { activeVoiceChannels } = usePresence();
+  const { activeVoiceChannels, voiceParticipants } = usePresence();
   const [remoteStreams, setRemoteStreams] = useState<
     Record<string, MediaStream>
   >({});
   const [remoteVideoEnabled, setRemoteVideoEnabled] = useState<
     Record<string, boolean>
   >({});
+  const [hasJoinedPresence, setHasJoinedPresence] = useState(false);
 
   const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
   const iceCandidateQueues = useRef<Record<string, RTCIceCandidate[]>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
+  const lastStateRef = useRef({ isMuted, isCameraOff, isSpeaking });
 
   const createPeerConnection = (peerId: string) => {
     if (pcsRef.current[peerId]) return pcsRef.current[peerId];
@@ -336,6 +338,8 @@ export default function VoiceChannelView({
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
+      let lastSpeakTime = 0;
+
       const checkVolume = () => {
         if (!analyser) return;
 
@@ -346,8 +350,13 @@ export default function VoiceChannelView({
           total += dataArray[i];
         }
         const averageVolume = total / bufferLength;
-
-        setIsSpeaking(averageVolume > 15);
+        const now = Date.now();
+        if (averageVolume > 15) {
+          lastSpeakTime = now;
+          setIsSpeaking(true);
+        } else if (now - lastSpeakTime > 400) {
+          setIsSpeaking(false);
+        }
 
         animationFrameId = requestAnimationFrame(checkVolume);
       };
@@ -400,14 +409,59 @@ export default function VoiceChannelView({
   const isStreamReady = localStream !== null;
 
   useEffect(() => {
-    if (!isConnected || !isStreamReady) return;
+    if (!isConnected) {
+      if (hasJoinedPresence) {
+        fetch("/api/channels/voice-presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channelId, action: "leave" }),
+        });
+        setHasJoinedPresence(false);
+      }
+      return;
+    }
 
-    fetch("/api/channels/voice-presence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channelId, action: "join" }),
-    });
+    if (!isStreamReady) return;
 
+    const user = members.find((m) => m.id === currentUserId);
+    const action = hasJoinedPresence ? "update" : "join";
+
+    if (
+      !hasJoinedPresence ||
+      lastStateRef.current.isMuted !== isMuted ||
+      lastStateRef.current.isCameraOff !== isCameraOff ||
+      lastStateRef.current.isSpeaking !== isSpeaking
+    ) {
+      fetch("/api/channels/voice-presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelId,
+          action,
+          name: user?.name,
+          image: user?.image,
+          isMuted,
+          isCameraOff,
+          isSpeaking,
+        }),
+      });
+      setHasJoinedPresence(true);
+      lastStateRef.current = { isMuted, isCameraOff, isSpeaking };
+    }
+  }, [
+    isConnected,
+    channelId,
+    isStreamReady,
+    hasJoinedPresence,
+    isMuted,
+    isCameraOff,
+    isSpeaking,
+    currentUserId,
+    members,
+    hasJoinedPresence,
+  ]);
+
+  useEffect(() => {
     return () => {
       fetch("/api/channels/voice-presence", {
         method: "POST",
@@ -415,7 +469,7 @@ export default function VoiceChannelView({
         body: JSON.stringify({ channelId, action: "leave" }),
       });
     };
-  }, [isConnected, channelId, isStreamReady]);
+  }, [channelId]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -818,6 +872,9 @@ export default function VoiceChannelView({
                     const stream = remoteStreams[peerId];
                     const isVideoOn = remoteVideoEnabled[peerId] ?? false;
 
+                    const participant = voiceParticipants.get(peerId);
+                    const isPeerMuted = participant?.isMuted ?? false;
+
                     return (
                       <div
                         key={peerId}
@@ -828,7 +885,9 @@ export default function VoiceChannelView({
                             autoPlay
                             playsInline
                             ref={(el) => {
-                              if (el) el.srcObject = stream;
+                              if (el && el.srcObject !== stream) {
+                                el.srcObject = stream;
+                              }
                             }}
                             className="w-full h-full object-cover"
                           />
@@ -841,14 +900,18 @@ export default function VoiceChannelView({
                           </Avatar>
                         )}
 
-                        <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md">
-                          <span className="text-xs font-medium text-zinc-200">
+                        <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md flex items-center gap-1.5 z-10 max-w-[80%]">
+                          <span className="text-xs font-medium text-zinc-200 truncate">
                             {peer?.name ?? peerId.slice(0, 8)}
                           </span>
+                          {isPeerMuted && (
+                            <MicOff className="size-3 text-red-500" />
+                          )}
                         </div>
                       </div>
                     );
                   })}
+
                 {renderUserScreenCard()}
 
                 {remoteScreenOwnerName && (

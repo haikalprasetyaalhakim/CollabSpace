@@ -13,6 +13,7 @@ import {
 import BrowserChannelsDialog from "@/features/channels/components/browser-channels-dialog";
 import CreateChannelDialog from "@/features/channels/components/create-channel-dialog";
 import { ChannelType } from "@/generated/prisma/enums";
+import { usePresence } from "@/hooks/use-presence";
 import { useUnread } from "@/hooks/use-unread";
 import { getInitials } from "@/lib/utils";
 import { Hash, MicOff, Plus, Video, Volume2 } from "lucide-react";
@@ -39,6 +40,7 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const [dialogType, setDialogType] = useState<"TEXT" | "VOICE">("TEXT");
 
   const { channelUnread, mentionedChannels } = useUnread();
+  const { voiceParticipants } = usePresence();
 
   const workspaceId = params.workspaceId as string;
 
@@ -198,7 +200,9 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
         <SidebarGroupContent>
           <SidebarMenu>
             {voiceChannels.map((channel) => {
-              const participants = activeVoiceUsers[channel.id] ?? [];
+              const participants = Array.from(
+                voiceParticipants.values(),
+              ).filter((p) => p.channelId === channel.id);
 
               return (
                 <SidebarMenuItem key={channel.id}>

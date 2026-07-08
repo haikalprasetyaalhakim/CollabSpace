@@ -1,8 +1,19 @@
+export type VoiceParticipant = {
+  id: string;
+  name: string;
+  image: string | null;
+  channelId: string;
+  isMuted: boolean;
+  isCameraOff: boolean;
+  isSpeaking: boolean;
+};
+
 const globalForPresence = global as unknown as {
   onlineUsers: Map<string, number>;
   presenceSubscribers: Map<string, Set<ReadableStreamDefaultController>>;
   userStatuses: Map<string, string>;
   activeVoiceChannels: Map<string, string>;
+  voiceParticipants: Map<string, VoiceParticipant>;
 };
 
 export const onlineUsers =
@@ -14,12 +25,15 @@ export const userStatuses =
   globalForPresence.userStatuses || new Map<string, string>();
 export const activeVoiceChannels =
   globalForPresence.activeVoiceChannels || new Map<string, string>();
+export const voiceParticipants =
+  globalForPresence.voiceParticipants || new Map<string, VoiceParticipant>();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPresence.onlineUsers = onlineUsers;
   globalForPresence.presenceSubscribers = presenceSubscribers;
   globalForPresence.userStatuses = userStatuses;
   globalForPresence.activeVoiceChannels = activeVoiceChannels;
+  globalForPresence.voiceParticipants = voiceParticipants;
 }
 
 export function userConnected(
@@ -46,6 +60,7 @@ export function userDisconnected(
     onlineUsers.delete(userId);
     userStatuses.delete(userId);
     activeVoiceChannels.delete(userId);
+    voiceParticipants.delete(userId);
   } else {
     onlineUsers.set(userId, count - 1);
   }
@@ -72,14 +87,44 @@ export function updateUserStatus(userId: string, status: string): void {
   }
 }
 
-export function userJoinedVoice(userId: string, channelId: string): void {
+export function userJoinedVoice(
+  userId: string,
+  channelId: string,
+  details?: {
+    name: string;
+    image: string | null;
+    isMuted: boolean;
+    isCameraOff: boolean;
+    isSpeaking: boolean;
+  },
+): void {
   activeVoiceChannels.set(userId, channelId);
+
+  if (details) {
+    voiceParticipants.set(userId, {
+      id: userId,
+      channelId,
+      ...details,
+    });
+  } else if (!voiceParticipants.has(userId)) {
+    voiceParticipants.set(userId, {
+      id: userId,
+      channelId,
+      name: "User",
+      image: null,
+      isMuted: false,
+      isCameraOff: false,
+      isSpeaking: false,
+    });
+  }
+
   broadcastPresence();
 }
 
 export function userLeftVoice(userId: string) {
   if (activeVoiceChannels.get(userId)) {
     activeVoiceChannels.delete(userId);
+    voiceParticipants.delete(userId);
     broadcastPresence();
   }
 }
@@ -90,6 +135,7 @@ function broadcastPresence(): void {
     onlineUserIds: getOnlineUserIds(),
     userStatuses: Object.fromEntries(userStatuses),
     activeVoiceChannels: Object.fromEntries(activeVoiceChannels),
+    voiceParticipants: Object.fromEntries(voiceParticipants),
   });
 
   const encoded = new TextEncoder().encode(`data: ${payload}\n\n`);

@@ -6,7 +6,12 @@ import z from "zod";
 
 const VoicePresenceSchema = z.object({
   channelId: z.string().min(1, "Channel ID is required"),
-  action: z.enum(["join", "leave"]),
+  action: z.enum(["join", "leave", "update"]),
+  name: z.string().optional(),
+  image: z.string().nullable().optional(),
+  isMuted: z.boolean().optional(),
+  isCameraOff: z.boolean().optional(),
+  isSpeaking: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -26,11 +31,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { channelId, action } = parsed.data;
+  const { channelId, action, image, isCameraOff, isMuted, isSpeaking, name } =
+    parsed.data;
   const userId = session.user.id;
 
-  if (action === "join") {
-    userJoinedVoice(userId, channelId);
+  if (action === "join" || action === "update") {
+    userJoinedVoice(userId, channelId, {
+      name: name ?? session.user.name,
+      image: image ?? session.user.image ?? null,
+      isMuted: isMuted ?? false,
+      isCameraOff: isCameraOff ?? false,
+      isSpeaking: isSpeaking ?? false,
+    });
   } else {
     userLeftVoice(userId);
   }

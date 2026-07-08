@@ -4,16 +4,28 @@ import { useParams, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+export type VoiceParticipant = {
+  id: string;
+  name: string;
+  image: string | null;
+  channelId: string;
+  isMuted: boolean;
+  isCameraOff: boolean;
+  isSpeaking: boolean;
+};
+
 type PresenceData = {
   onlineUserIds: Set<string>;
   userStatuses: Map<string, string>;
   activeVoiceChannels: Map<string, string>;
+  voiceParticipants: Map<string, VoiceParticipant>;
 };
 
 const PresenceContext = createContext<PresenceData>({
   onlineUserIds: new Set(),
   userStatuses: new Map(),
   activeVoiceChannels: new Map(),
+  voiceParticipants: new Map(),
 });
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
@@ -23,6 +35,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   );
   const [activeVoiceChannels, setActiveVoiceChannels] = useState<
     Map<string, string>
+  >(new Map());
+  const [voiceParticipants, setVoiceParticipants] = useState<
+    Map<string, VoiceParticipant>
   >(new Map());
 
   const router = useRouter();
@@ -39,6 +54,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         setUserStatuses(new Map(Object.entries(data.userStatuses ?? {})));
         setActiveVoiceChannels(
           new Map(Object.entries(data.activeVoiceChannels ?? {})),
+        );
+        setVoiceParticipants(
+          new Map(Object.entries(data.voiceParticipants ?? {})),
         );
       } else if (
         data.type === "kick" &&
@@ -65,6 +83,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         onlineUserIds,
         userStatuses,
         activeVoiceChannels,
+        voiceParticipants,
       }}
     >
       {children}
