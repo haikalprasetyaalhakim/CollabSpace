@@ -277,6 +277,32 @@ export default function VoiceChannelView({
   }, [activeVoiceChannels, channelId, currentUserId]);
 
   useEffect(() => {
+    const currentPeers = Object.keys(pcsRef.current);
+
+    currentPeers.forEach((peerId) => {
+      if (!activePeerIds.includes(peerId)) {
+        console.log(`🧹 Cleaning up zombie peer connection for: ${peerId}`);
+        if (pcsRef.current[peerId]) {
+          pcsRef.current[peerId].close();
+          delete pcsRef.current[peerId];
+        }
+
+        setRemoteStreams((prev) => {
+          const next = { ...prev };
+          delete next[peerId];
+          return next;
+        });
+
+        setRemoteVideoEnabled((prev) => {
+          const next = { ...prev };
+          delete next[peerId];
+          return next;
+        });
+      }
+    });
+  }, [activePeerIds]);
+
+  useEffect(() => {
     console.log("👥 Other active members in this voice room:", activePeerIds);
   }, [activePeerIds]);
 
@@ -371,8 +397,10 @@ export default function VoiceChannelView({
     members,
   ]);
 
+  const isStreamReady = localStream !== null;
+
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected || !isStreamReady) return;
 
     fetch("/api/channels/voice-presence", {
       method: "POST",
@@ -387,7 +415,7 @@ export default function VoiceChannelView({
         body: JSON.stringify({ channelId, action: "leave" }),
       });
     };
-  }, [isConnected, channelId]);
+  }, [isConnected, channelId, isStreamReady]);
 
   useEffect(() => {
     setIsMounted(true);
