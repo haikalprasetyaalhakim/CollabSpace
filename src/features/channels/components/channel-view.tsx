@@ -31,11 +31,14 @@ import { formatDateLabel, getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
 import {
   Bell,
+  FileUp,
+  Film,
   Hash,
   ImageIcon,
   MessageSquare,
   Pencil,
   Pin,
+  Plus,
   Reply,
   Search,
   Send,
@@ -57,6 +60,11 @@ import ChannelMemberPanel from "./channel-member-panel";
 import { Separator } from "@/components/ui/separator";
 import { LeaveChannelButton } from "./channel-settings-button";
 import { useSearch } from "@/hooks/use-search";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);
@@ -220,7 +228,94 @@ function MessageItem({
           )
         )}
 
-        {message.images.length > 0 && <ImageGrid images={message.images} />}
+        {message.images.length > 0 &&
+          (() => {
+            const getAttachmentMeta = (url: string) => {
+              try {
+                const urlObj = new URL(url);
+                const name = urlObj.searchParams.get("name");
+                if (name) {
+                  const isImg = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(
+                    name.toLowerCase(),
+                  );
+                  const isVid = /\.(mp4|webm|mov|ogg)$/i.test(
+                    name.toLowerCase(),
+                  );
+                  return { name, isImg, isVid, downloadUrl: url };
+                }
+              } catch (e) {}
+              return {
+                name: "Image",
+                isImg: true,
+                isVid: false,
+                downloadUrl: url,
+              };
+            };
+
+            const parsedAttachments = message.images.map(getAttachmentMeta);
+            const images = parsedAttachments
+              .filter((a) => a.isImg)
+              .map((a) => a.downloadUrl);
+            const videos = parsedAttachments.filter((a) => a.isVid);
+            const files = parsedAttachments.filter((a) => !a.isImg && !a.isVid);
+
+            return (
+              <div className="flex flex-col gap-2 mt-1">
+                {images.length > 0 && <ImageGrid images={images} />}
+
+                {videos.length > 0 && (
+                  <div className="flex flex-col gap-2 mt-1">
+                    {videos.map((vid) => (
+                      <div
+                        key={vid.downloadUrl}
+                        className="relative max-w-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-850 bg-black/10 dark:bg-black/40 shadow-sm"
+                      >
+                        <video
+                          src={vid.downloadUrl}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="max-w-full max-h-[300px] w-auto h-auto block object-contain mx-auto"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {files.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {files.map((file) => (
+                      <div
+                        key={file.downloadUrl}
+                        className="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 max-w-sm group/file hover:bg-zinc-100/40 dark:hover:bg-zinc-900/50 transition-all duration-200"
+                      >
+                        <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-550 dark:text-zinc-400 shrink-0">
+                          <FileUp className="size-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate"
+                            title={file.name}
+                          >
+                            {file.name}
+                          </p>
+                          <a
+                            href={file.downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={file.name}
+                            className="text-[10px] text-blue-500 hover:underline mt-0.5 block font-medium"
+                          >
+                            Download File
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         {repliesCount > 0 && (
           <button
@@ -535,6 +630,7 @@ export function ChannelView({
   const [showPersonalizeDialog, setShowPersonalizeDialog] = useState(false);
   const [showMemberPanel, setShowMemberPanel] = useState(true);
   const { setOpen } = useSearch();
+  const [attachOpen, setAttachOpen] = useState(false);
 
   const { data: session } = authClient.useSession();
 
@@ -618,8 +714,10 @@ export function ChannelView({
         prev.map((item) => {
           if (item.remoteUrl) return item;
           const match = res.find((r) => r.name === item.name);
-          if (match)
-            return { ...item, remoteUrl: match.ufsUrl, key: match.key };
+          if (match) {
+            const ufsUrlWithMeta = `${match.ufsUrl}?name=${encodeURIComponent(item.name)}`;
+            return { ...item, remoteUrl: ufsUrlWithMeta, key: match.key };
+          }
           return item;
         }),
       );
@@ -925,8 +1023,8 @@ export function ChannelView({
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
 
-    if (pendingImages.length + files.length > MAX_IMAGE_PER_MESSAGE) {
-      toast.error("Maximum 4 images per message");
+    if (pendingImages.length + files.length > 4) {
+      toast.error("Maximum 4 files per message");
       return;
     }
 
@@ -1256,36 +1354,65 @@ export function ChannelView({
 
           {pendingImages.length > 0 && (
             <div className="flex gap-2 flex-wrap px-4 pb-2">
-              {pendingImages.map((img, i) => (
-                <div key={img.localUrl} className="relative group">
-                  <img
-                    src={img.localUrl}
-                    alt=""
-                    className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${img.remoteUrl ? "opacity-100" : "opacity-60"}`}
-                  />
-                  {!img.remoteUrl && (
-                    <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
-                      <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
-                  {img.remoteUrl && (
-                    <button
-                      onClick={() => {
-                        URL.revokeObjectURL(img.localUrl);
-                        if (img.key) {
-                          deleteUploadedFiles([img]);
-                        }
-                        setPendingImages((prev) =>
-                          prev.filter((_, idx) => idx !== i),
-                        );
-                      }}
-                      className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
+              {pendingImages.map((file, i) => {
+                const nameLower = file.name.split("?")[0].toLowerCase();
+                const isImg = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(
+                  nameLower,
+                );
+                const isVid = /\.(mp4|webm|mov|ogg)$/i.test(nameLower);
+
+                return (
+                  <div key={file.localUrl} className="relative group">
+                    {isImg ? (
+                      <img
+                        src={file.localUrl}
+                        alt=""
+                        className={`size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700 transition-opacity ${file.remoteUrl ? "opacity-100" : "opacity-60"}`}
+                      />
+                    ) : isVid ? (
+                      <div
+                        className={`size-16 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center p-1 relative transition-opacity ${file.remoteUrl ? "opacity-100" : "opacity-60"}`}
+                      >
+                        <Film className="size-5 text-indigo-500 dark:text-indigo-400" />
+                        <span className="text-[9px] text-zinc-550 dark:text-zinc-400 font-medium truncate w-full text-center mt-1 px-1">
+                          {file.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        className={`size-16 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center p-1 relative transition-opacity ${file.remoteUrl ? "opacity-100" : "opacity-60"}`}
+                      >
+                        <FileUp className="size-5 text-emerald-500 dark:text-emerald-400" />
+                        <span className="text-[9px] text-zinc-550 dark:text-zinc-400 font-medium truncate w-full text-center mt-1 px-1">
+                          {file.name}
+                        </span>
+                      </div>
+                    )}
+
+                    {!file.remoteUrl && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20">
+                        <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                    {file.remoteUrl && (
+                      <button
+                        onClick={() => {
+                          URL.revokeObjectURL(file.localUrl);
+                          if (file.key) {
+                            deleteUploadedFiles([file]);
+                          }
+                          setPendingImages((prev) =>
+                            prev.filter((_, idx) => idx !== i),
+                          );
+                        }}
+                        className="absolute -top-1.5 -right-1.5 size-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -1336,22 +1463,61 @@ export function ChannelView({
               <input
                 ref={imageInputRef}
                 type="file"
-                accept="image/png, image/jpeg, image/webp"
                 multiple
                 className="hidden"
                 onChange={handleImageSelect}
               />
-              <button
-                type="button"
-                className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={
-                  pendingImages.length >= MAX_IMAGE_PER_MESSAGE ||
-                  isUploadingImages
-                }
-              >
-                <ImageIcon className="size-4" />
-              </button>
+              <Popover open={attachOpen} onOpenChange={setAttachOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="shrink-0 size-7 rounded-md flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <Plus className="size-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="start"
+                  sideOffset={12}
+                  className="w-48 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
+                >
+                  {/* Upload a File (Aktif) */}
+                  <button
+                    onClick={() => {
+                      imageInputRef.current?.click();
+                      setAttachOpen(false);
+                    }}
+                    disabled={
+                      pendingImages.length >= MAX_IMAGE_PER_MESSAGE ||
+                      isUploadingImages
+                    }
+                    className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                  >
+                    <ImageIcon className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                    <span>Upload a File</span>
+                  </button>
+
+                  {/* Create Poll (Disabled) */}
+                  <button
+                    disabled
+                    className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
+                  >
+                    <FileUp className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
+                    <span>Create Poll</span>
+                  </button>
+
+                  {/* Use Apps (Disabled) */}
+                  <button
+                    disabled
+                    className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
+                  >
+                    <Film className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
+                    <span>Use Apps</span>
+                  </button>
+                </PopoverContent>
+              </Popover>
+
               <textarea
                 value={input}
                 ref={textareaRef}

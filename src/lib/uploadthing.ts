@@ -25,8 +25,8 @@ export const ourFileRouter = {
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
   messageImageUploader: f({
-    image: {
-      maxFileSize: "4MB",
+    blob: {
+      maxFileSize: "16MB",
       maxFileCount: 4,
     },
   })

@@ -35,6 +35,7 @@ export async function proxy(request: NextRequest) {
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' 'unsafe-eval';
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https://lh3.googleusercontent.com https://ufs.sh https://*.ufs.sh;
+    media-src 'self' blob: https://ufs.sh https://*.ufs.sh;
     connect-src 'self' https://*.ingest.uploadthing.com https://*.uploadthing.com;
     font-src 'self';
     frame-src 'none';
