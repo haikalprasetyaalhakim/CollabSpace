@@ -20,7 +20,8 @@ export async function getChannelMessages(channelId: string) {
         select: {
           id: true,
           content: true,
-          user: { select: { id: true, name: true } },
+          images: true,
+          user: { select: { id: true, name: true, image: true } },
         },
       },
       _count: {

@@ -70,3 +70,29 @@ export const getAttachmentMeta = (url: string) => {
     downloadUrl: url,
   };
 };
+
+export function getMessageFallbackText(msg: {
+  content: string | null;
+  images: string[];
+}) {
+  if (!msg) return "";
+  if (msg.content) return msg.content;
+  if (!msg.images || msg.images.length === 0) return "Message";
+
+  let images = 0;
+  let videos = 0;
+  let files = 0;
+
+  msg.images.forEach((url) => {
+    const meta = getAttachmentMeta(url);
+    if (meta.isImg) images++;
+    else if (meta.isVid) videos++;
+    else files++;
+  });
+
+  const total = images + videos + files;
+  if (total > 1) return "📎 Attachments";
+  if (images > 0) return "📷 Image";
+  if (videos > 0) return "🎥 Video";
+  return "📁 File";
+}

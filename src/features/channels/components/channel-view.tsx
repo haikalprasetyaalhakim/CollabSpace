@@ -27,7 +27,12 @@ import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { useUnread } from "@/hooks/use-unread";
 import { authClient } from "@/lib/auth-client";
-import { formatDateLabel, getAttachmentMeta, getInitials } from "@/lib/utils";
+import {
+  formatDateLabel,
+  getAttachmentMeta,
+  getInitials,
+  getMessageFallbackText,
+} from "@/lib/utils";
 import { PendingImage } from "@/types/message";
 import {
   ArrowUpRight,
@@ -80,6 +85,19 @@ function renderContent(content: string) {
   );
 }
 
+export const jumpToMessage = (messageId: string) => {
+  const el = document.getElementById(`message-${messageId}`);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("message-flash");
+    setTimeout(() => {
+      el.classList.remove("message-flash");
+    }, 1800);
+  } else {
+    toast.info("Message is older. Try scrolling up to load more messages.");
+  }
+};
+
 function MessageItem({
   message,
   currentUserId,
@@ -118,65 +136,87 @@ function MessageItem({
   return (
     <div
       id={`message-${message.id}`}
-      className={`relative flex items-start gap-3 px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/40 hover:bg-zinc-50/70 ${isCompact ? "py-0.5" : "mt-2.5 py-1.5"}`}
+      className={`relative flex flex-col px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/40 hover:bg-zinc-50/70 ${
+        isCompact
+          ? "py-0.5"
+          : message.replyTo
+            ? "mt-3.5 pt-1.5 pb-1.5"
+            : "mt-2.5 py-1.5"
+      }`}
     >
-      {isCompact ? (
-        <div className="w-8 shrink-0 flex items-center justify-end pr-1.5 select-none h-5">
-          <span
-            className="text-[10px] text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity"
-            suppressHydrationWarning
+      {message.replyTo && !isCompact && (
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 pl-[34px] pb-1 min-w-0">
+          <div className="absolute left-[32px] top-[14px] w-3 h-3 border-l-2 border-t-2 border-zinc-200 dark:border-zinc-800 rounded-tl-[6px] pointer-events-none" />
+
+          <Avatar className="size-4 shrink-0">
+            <AvatarImage src={message.replyTo.user.image ?? ""} />
+            <AvatarFallback className="text-[6px] font-semibold text-zinc-700 dark:text-zinc-200">
+              {getInitials(message.replyTo.user.name)}
+            </AvatarFallback>
+          </Avatar>
+          <button
+            onClick={() => jumpToMessage(message.replyTo!.id)}
+            className="flex items-center gap-1 text-left min-w-0 transition-colors cursor-pointer group/reply-btn text-zinc-450 dark:text-zinc-450"
           >
-            {new Date(message.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })}
-          </span>
-        </div>
-      ) : (
-        <UserProfileCard
-          userId={message.user.id}
-          name={message.user.name}
-          image={message.user.image}
-          isCurrentUser={message.user.id === currentUserId}
-          side="right"
-        >
-          <button className="shrink-0 cursor-pointer rounded-full">
-            <Avatar className="size-8">
-              <AvatarImage src={message.user.image ?? ""} />
-              <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                {getInitials(message.user.name)}
-              </AvatarFallback>
-            </Avatar>
+            <span className="font-semibold text-zinc-500 dark:text-zinc-400 hover:underline hover:text-zinc-800 dark:hover:text-zinc-200 shrink-0">
+              @{message.replyTo.user.name}
+            </span>
+            <span className="truncate hover:text-zinc-700 dark:hover:text-zinc-350 font-medium">
+              {getMessageFallbackText(message.replyTo)}
+            </span>
           </button>
-        </UserProfileCard>
+        </div>
       )}
 
-      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-        {!isCompact && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
-              {message.user.name}
-            </span>
-            <span className="text-xs text-zinc-400" suppressHydrationWarning>
-              {time}
-            </span>
-            {isPinned && <Pin className="size-3 text-zinc-400 fill-zinc-400" />}
-          </div>
-        )}
-
-        {message.replyTo && !isCompact && (
-          <div className="flex items-center gap-1.5 border-l-2 border-zinc-300 dark:border-zinc-600 pl-2 py-0.5 mb-0.5 rounded-sm">
-            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0">
-              {message.replyTo.user.name}
-            </span>
-            <span className="text-xs text-zinc-400 truncate">
-              {message.replyTo.content ?? "📷 Image"}
+      <div className="flex items-start gap-3 w-full">
+        {isCompact ? (
+          <div className="w-8 shrink-0 flex items-center justify-end pr-1.5 select-none h-5">
+            <span
+              className="text-[10px] text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity"
+              suppressHydrationWarning
+            >
+              {new Date(message.createdAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              })}
             </span>
           </div>
+        ) : (
+          <UserProfileCard
+            userId={message.user.id}
+            name={message.user.name}
+            image={message.user.image}
+            isCurrentUser={message.user.id === currentUserId}
+            side="right"
+          >
+            <button className="shrink-0 cursor-pointer rounded-full outline-none">
+              <Avatar className="size-8">
+                <AvatarImage src={message.user.image ?? ""} />
+                <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                  {getInitials(message.user.name)}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          </UserProfileCard>
         )}
 
-        {isEditing ? (
+        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+          {!isCompact && (
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
+                {message.user.name}
+              </span>
+              <span className="text-xs text-zinc-400" suppressHydrationWarning>
+                {time}
+              </span>
+              {isPinned && (
+                <Pin className="size-3 text-zinc-400 fill-zinc-400" />
+              )}
+            </div>
+          )}
+
+          {isEditing ? (
           <div className="flex flex-col gap-2 mt-1">
             <textarea
               ref={editRef}
@@ -318,18 +358,8 @@ function MessageItem({
             );
           })()}
 
-        {repliesCount > 0 && (
-          <button
-            className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline mt-1 font-semibold flex items-center gap-1.5 w-fit cursor-pointer"
-            onClick={() => onThreadReply?.(message)}
-          >
-            <MessageSquare className="size-3.5" />
-            {repliesCount} {repliesCount === 1 ? "reply" : "replies"}
-          </button>
-        )}
-
         {message.messageReactions.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {Object.entries(
               message.messageReactions.reduce(
                 (acc, r) => {
@@ -376,6 +406,17 @@ function MessageItem({
             ))}
           </div>
         )}
+
+        {repliesCount > 0 && (
+          <button
+            onClick={() => onThreadReply?.(message)}
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors text-xs text-indigo-600 dark:text-indigo-400 font-semibold w-fit mt-2 cursor-pointer"
+          >
+            <MessageSquare className="size-3.5" />
+            <span>{repliesCount} {repliesCount === 1 ? "reply" : "replies"}</span>
+          </button>
+        )}
+        </div>
       </div>
 
       {!isEditing && (
@@ -597,7 +638,6 @@ export function ChannelView({
 }: Props) {
   const [messages, setMessages] = useState<MessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageWithUser | null>(null);
@@ -813,19 +853,6 @@ export function ChannelView({
     document.addEventListener("mouseup", handleMouseUp);
   };
 
-  const jumpToMessage = (messageId: string) => {
-    const el = document.getElementById(`message-${messageId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("message-flash");
-      setTimeout(() => {
-        el.classList.remove("message-flash");
-      }, 1800);
-    } else {
-      toast.info("Message is older. Try scrolling up to load more messages.");
-    }
-  };
-
   useEffect(() => {
     markChannelRead(channelId);
   }, [markChannelRead, channelId]);
@@ -846,7 +873,9 @@ export function ChannelView({
   );
 
   const handleMessageUpdated = useCallback((message: MessageWithUser) => {
-    setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)));
+    setMessages((prev) =>
+      prev.map((m) => (m.id === message.id ? { ...m, ...message } : m)),
+    );
   }, []);
 
   const handleMessageDeleted = useCallback((messageId: string) => {
@@ -915,12 +944,9 @@ export function ChannelView({
     const allUploaded = pendingImages.every((img) => img.remoteUrl !== null);
     if (
       (!input.trim() && pendingImages.length === 0) ||
-      !allUploaded ||
-      isSending
+      !allUploaded
     )
       return;
-
-    setIsSending(true);
 
     const tempId = crypto.randomUUID();
 
@@ -979,8 +1005,6 @@ export function ChannelView({
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.error("Network error.");
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -1337,7 +1361,10 @@ export function ChannelView({
                         new Date(prev.createdAt).toDateString();
 
                     const isCompact =
-                      isSameUser && isTimeClose && !showDateSeparator;
+                      isSameUser &&
+                      isTimeClose &&
+                      !showDateSeparator &&
+                      !msg.replyToId;
 
                     return (
                       <React.Fragment key={msg.id}>
@@ -1362,7 +1389,7 @@ export function ChannelView({
                           isPinned={pinnedIds.has(msg.id)}
                           isCompact={isCompact}
                           onThreadReply={(m) => setActiveThreadParentId(m.id)}
-                          repliesCount={msg._count.threadReplies}
+                          repliesCount={msg._count?.threadReplies ?? 0}
                         />
                       </React.Fragment>
                     );
@@ -1455,7 +1482,7 @@ export function ChannelView({
                 <Reply className="size-3 text-zinc-400 shrink-0" />
                 <span className="text-zinc-500">Replying to</span>
                 <span className="text-zinc-400 truncate">
-                  {replyingTo.content ?? "📷 Image"}
+                  {getMessageFallbackText(replyingTo)}
                 </span>
               </div>
               <button
@@ -1571,7 +1598,6 @@ export function ChannelView({
                 rows={1}
                 onKeyDown={handleKeyDown}
                 placeholder={`Message ${channelName}`}
-                disabled={isSending}
                 className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
                 style={{ fieldSizing: "content" }}
               />
