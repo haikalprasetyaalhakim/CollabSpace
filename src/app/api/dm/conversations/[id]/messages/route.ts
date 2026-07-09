@@ -50,11 +50,14 @@ export async function GET(
       },
     },
     orderBy: { createdAt: "desc" },
-    take: PAGINATION_LIMIT,
+    take: PAGINATION_LIMIT + 1,
   });
 
+  const hasMore = messages.length > PAGINATION_LIMIT;
+  const sliced = hasMore ? messages.slice(0, PAGINATION_LIMIT) : messages;
+
   return Response.json({
-    messages: messages.reverse(),
-    hasMore: messages.length === PAGINATION_LIMIT,
+    messages: sliced.reverse(),
+    hasMore,
   });
 }

@@ -137,6 +137,7 @@ export function DmView({
   const revokeAllRef = useRef<() => void>(() => {});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(!highlightMessageId);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
 
   const { data: session } = authClient.useSession();
 
@@ -576,6 +577,23 @@ export function DmView({
         new Date(otherLastReadAt) >= new Date(m.createdAt),
     )?.id;
 
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleLoadMore]);
+
   return (
     <div className="flex flex-col h-full">
       <div
@@ -600,18 +618,10 @@ export function DmView({
           </div>
         ) : (
           <div className="space-y-1 px-4">
-            {hasMore && (
+            {hasMore && <div ref={topSentinelRef} className="h-1" />}
+            {isLoadingMore && (
               <div className="flex justify-center py-3">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isLoadingMore}
-                  className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
-                >
-                  {isLoadingMore && (
-                    <span className="size-3 border border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                  )}
-                  {isLoadingMore ? "Loading..." : "Load previous messages"}
-                </button>
+                <span className="size-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
 
@@ -854,7 +864,7 @@ function MessageItem({
 
   const editRef = useRef<HTMLTextAreaElement>(null);
 
-  const time = new Date(message.createdAt).toLocaleTimeString([], {
+  const time = new Date(message.createdAt).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
   });

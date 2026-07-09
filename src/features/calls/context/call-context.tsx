@@ -3,6 +3,7 @@
 import { DmMessageWithUser } from "@/features/dm/queries/get-dm-messages";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import CallOverlay from "../components/call-overlay";
+import { toast } from "sonner";
 
 export type CallState =
   | "idle"
@@ -85,6 +86,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           await pcRef.current.setRemoteDescription(
             new RTCSessionDescription(data.data),
           );
+
+          if (data.isVideo === false) {
+            setIsVideo(false);
+          }
 
           setCallState("connected");
 
@@ -187,11 +192,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const sendSignal = async (
     type: "offer" | "answer" | "ice-candidate" | "hangup" | "reject",
     data?: any,
+    customIsVideo?: boolean,
   ) => {
     if (!otherUser) {
       console.warn("Can't send signal: otherUser is null");
       return;
     }
+
+    console.log(isVideo);
 
     try {
       await fetch("/api/calls", {
@@ -201,7 +209,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           targetUserId: otherUser.id,
           type,
           data,
-          isVideo,
+          isVideo: customIsVideo !== undefined ? customIsVideo : isVideo,
         }),
       });
     } catch (error) {
@@ -279,21 +287,59 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     return pc;
   };
 
+  const getMediaStream = async (
+    wantsVideo: boolean,
+  ): Promise<{ stream: MediaStream; actuallyVideo: boolean }> => {
+    if (wantsVideo) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        return { stream, actuallyVideo: true };
+      } catch (error: any) {
+        const isDeviceInUse =
+          error?.name === "NotReadableError" ||
+          error?.name === "TrackStartError" ||
+          error?.message?.toLowerCase().includes("device in use") ||
+          error?.message?.toLowerCase().includes("could not start video");
+
+        if (isDeviceInUse) {
+          toast.warning(
+            "Camera is in use by another app. Switching to audio-only.",
+          );
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: true,
+          });
+          return { stream, actuallyVideo: false };
+        }
+        throw error;
+      }
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: true,
+    });
+    return { stream, actuallyVideo: false };
+  };
+
   const startCall = async (user: CallUser, isVideoCall: boolean) => {
     setOtherUser(user);
     setIsVideo(isVideoCall);
     setCallState("calling");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoCall,
-        audio: true,
-      });
+      const { stream, actuallyVideo } = await getMediaStream(isVideoCall);
+
+      if (actuallyVideo !== isVideoCall) setIsVideo(false);
 
       setLocalStream(stream);
       localStreamRef.current = stream;
 
-      const pc = createPeerConnection(isVideoCall);
+      const pc = createPeerConnection(actuallyVideo);
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -322,10 +368,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCallState("connected");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideo,
-        audio: true,
-      });
+      const { stream, actuallyVideo } = await getMediaStream(isVideo);
+
+      if (isVideo && !actuallyVideo) setIsVideo(false);
+
       setLocalStream(stream);
       localStreamRef.current = stream;
 
@@ -344,7 +390,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      sendSignal("answer", answer);
+      sendSignal("answer", answer, actuallyVideo);
     } catch (error) {
       console.error("Failed to get call:", error);
       cleanupCall();

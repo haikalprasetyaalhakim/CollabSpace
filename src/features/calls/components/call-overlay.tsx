@@ -34,6 +34,10 @@ export default function CallOverlay() {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
+    setIsCameraOff(!isVideo);
+  }, [isVideo]);
+
+  useEffect(() => {
     if (callState !== "calling") return;
 
     const audio = new Audio("/sounds/calling.mp3");
@@ -76,7 +80,7 @@ export default function CallOverlay() {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream]);
+  }, [localStream, callState]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream && isVideo) {
