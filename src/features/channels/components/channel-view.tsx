@@ -27,9 +27,10 @@ import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
 import { useUnread } from "@/hooks/use-unread";
 import { authClient } from "@/lib/auth-client";
-import { formatDateLabel, getInitials } from "@/lib/utils";
+import { formatDateLabel, getAttachmentMeta, getInitials } from "@/lib/utils";
 import { PendingImage } from "@/types/message";
 import {
+  ArrowUpRight,
   Bell,
   FileUp,
   Film,
@@ -631,6 +632,7 @@ export function ChannelView({
   const [showMemberPanel, setShowMemberPanel] = useState(true);
   const { setOpen } = useSearch();
   const [attachOpen, setAttachOpen] = useState(false);
+  const [pinnedWidth, setPinnedWidth] = useState(288);
 
   const { data: session } = authClient.useSession();
 
@@ -789,6 +791,40 @@ export function ChannelView({
       setIsLoadingMore(false);
     }
   }, [cursor, isLoadingMore, channelId]);
+
+  const handlePinnedResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = pinnedWidth;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = startWidth - (moveEvent.clientX - startX);
+      if (newWidth >= 240 && newWidth <= 480) {
+        setPinnedWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const jumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`message-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("message-flash");
+      setTimeout(() => {
+        el.classList.remove("message-flash");
+      }, 1800);
+    } else {
+      toast.info("Message is older. Try scrolling up to load more messages.");
+    }
+  };
 
   useEffect(() => {
     markChannelRead(channelId);
@@ -1175,9 +1211,7 @@ export function ChannelView({
             </p>
           )}
         </div>
-        {/* Discord-style Header Actions */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Bell Icon (Mute notifications) */}
           <button
             onClick={() => toast.info("Notification settings coming soon!")}
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
@@ -1186,7 +1220,6 @@ export function ChannelView({
             <Bell className="size-4" />
           </button>
 
-          {/* Pin Icon (Toggle Pinned Panel) */}
           <button
             onClick={() => setShowPinnedPanel((v) => !v)}
             className={`transition-colors p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800/60 relative ${
@@ -1557,10 +1590,17 @@ export function ChannelView({
           </div>
         </div>
 
-        {/* Pinned Messages Sidebar */}
         {showPinnedPanel && (
-          <div className="w-72 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden bg-white dark:bg-zinc-950">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+          <div
+            style={{ width: `${pinnedWidth}px` }}
+            className="shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden bg-white dark:bg-zinc-950 relative"
+          >
+            <div
+              onMouseDown={handlePinnedResize}
+              className="absolute top-0 bottom-0 left-0 w-1 cursor-col-resize hover:bg-indigo-500/50 hover:w-1.5 transition-all z-50 bg-transparent"
+            />
+
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
               <div className="flex items-center gap-2">
                 <Pin className="size-4 text-zinc-500" />
                 <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
@@ -1581,26 +1621,140 @@ export function ChannelView({
                   Loading...
                 </p>
               ) : (
-                pinnedMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700"
-                  >
-                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                      {msg.user.name}
-                    </span>
-                    {msg.content && (
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 break-all">
-                        {msg.content}
-                      </p>
-                    )}
-                    {msg.images.length > 0 && (
-                      <span className="text-xs text-zinc-400">
-                        📷 {msg.images.length} image(s)
-                      </span>
-                    )}
-                  </div>
-                ))
+                pinnedMessages.map((msg) => {
+                  const parsedAttachments = msg.images.map(getAttachmentMeta);
+
+                  const images = parsedAttachments
+                    .filter((a) => a.isImg)
+                    .map((a) => a.downloadUrl);
+                  const videos = parsedAttachments.filter((a) => a.isVid);
+                  const files = parsedAttachments.filter(
+                    (a) => !a.isImg && !a.isVid,
+                  );
+
+                  return (
+                    <div
+                      key={msg.id}
+                      className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-150 dark:border-zinc-700/80 space-y-3 hover:shadow-sm transition-shadow group"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <UserProfileCard
+                          userId={msg.user.id}
+                          name={msg.user.name}
+                          image={msg.user.image}
+                          isCurrentUser={msg.user.id === currentUserId}
+                          side="left"
+                        >
+                          <button className="shrink-0 cursor-pointer rounded-full outline-none">
+                            <Avatar className="size-8">
+                              <AvatarImage src={msg.user.image ?? ""} />
+                              <AvatarFallback className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-200">
+                                {getInitials(msg.user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </button>
+                        </UserProfileCard>
+
+                        <div className="flex-1 min-w-0">
+                          <UserProfileCard
+                            userId={msg.user.id}
+                            name={msg.user.name}
+                            image={msg.user.image}
+                            isCurrentUser={msg.user.id === currentUserId}
+                            side="left"
+                          >
+                            <button className="text-xs font-semibold text-zinc-850 dark:text-zinc-200 hover:underline text-left block truncate">
+                              {msg.user.name}
+                            </button>
+                          </UserProfileCard>
+                          <span
+                            className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-0.5 block"
+                            suppressHydrationWarning
+                          >
+                            {new Date(msg.createdAt).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                            })}{" "}
+                            ·{" "}
+                            {new Date(msg.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => jumpToMessage(msg.id)}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all opacity-0 group-hover:opacity-100"
+                          title="Jump to Message"
+                        >
+                          <ArrowUpRight className="size-4" />
+                        </button>
+                      </div>
+
+                      {msg.content && (
+                        <p className="text-xs text-zinc-600 dark:text-zinc-350 break-all leading-relaxed pl-0.5">
+                          {msg.content}
+                        </p>
+                      )}
+
+                      {images.length > 0 && (
+                        <div className="rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                          <ImageGrid images={images} />
+                        </div>
+                      )}
+
+                      {videos.length > 0 && (
+                        <div className="space-y-1.5">
+                          {videos.map((vid) => (
+                            <div
+                              key={vid.downloadUrl}
+                              className="relative rounded-lg overflow-hidden border border-zinc-250 dark:border-zinc-700 bg-black/10 dark:bg-black/40"
+                            >
+                              <video
+                                src={vid.downloadUrl}
+                                controls
+                                playsInline
+                                preload="metadata"
+                                className="w-full max-h-40 block object-contain"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {files.length > 0 && (
+                        <div className="space-y-1.5">
+                          {files.map((file) => (
+                            <div
+                              key={file.downloadUrl}
+                              className="flex items-center gap-2 p-2 rounded-lg border border-zinc-200 dark:border-zinc-750 bg-white dark:bg-zinc-900/50 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/80 transition-colors"
+                            >
+                              <FileUp className="size-4 text-zinc-500 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 truncate"
+                                  title={file.name}
+                                >
+                                  {file.name}
+                                </p>
+                                <a
+                                  href={file.downloadUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download={file.name}
+                                  className="text-[9px] text-blue-500 hover:underline mt-0.5 block font-medium"
+                                >
+                                  Download File
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

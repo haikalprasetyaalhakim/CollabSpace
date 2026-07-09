@@ -51,3 +51,22 @@ export const formatDuration = (seconds: number) => {
   const s = (seconds % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
 };
+
+export const getAttachmentMeta = (url: string) => {
+  try {
+    const urlObj = new URL(url);
+    const name = urlObj.searchParams.get("name");
+    if (name) {
+      const isImg = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(name.toLowerCase());
+      const isVid = /\.(mp4|webm|mov|ogg)$/i.test(name.toLowerCase());
+      return { name, isImg, isVid, downloadUrl: url };
+    }
+  } catch (error) {}
+
+  return {
+    name: "Image",
+    isImg: true,
+    isVid: false,
+    downloadUrl: url,
+  };
+};
