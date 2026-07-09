@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
         select: {
           id: true,
           content: true,
-          user: { select: { id: true, name: true } },
+          images: true,
+          user: { select: { id: true, name: true, image: true } },
         },
       },
       directMessageReactions: {

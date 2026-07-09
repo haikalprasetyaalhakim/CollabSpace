@@ -15,16 +15,35 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import UserProfileCard from "@/components/user-profile-card";
+import {
   ALLOWED_EMOJIS,
   MAX_IMAGE_PER_MESSAGE,
   PAGINATION_LIMIT,
 } from "@/constants";
+import { useCall } from "@/features/calls/context/call-context";
 import { useUploadThing } from "@/hooks/use-avatar-upload";
 import { useChannelSSE } from "@/hooks/use-channel-sse";
+import { useUnread } from "@/hooks/use-unread";
 import { authClient } from "@/lib/auth-client";
-import { formatDateLabel, getInitials } from "@/lib/utils";
+import {
+  formatDateLabel,
+  getAttachmentMeta,
+  getInitials,
+  getMessageFallbackText,
+} from "@/lib/utils";
 import { PendingImage } from "@/types/message";
 import {
+  FileUp,
   ImageIcon,
   Pencil,
   PhoneMissed,
@@ -33,18 +52,12 @@ import {
   SmilePlus,
   Trash2,
   X,
+  Plus,
+  Film,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DmMessageWithUser } from "../queries/get-dm-messages";
-import { useUnread } from "@/hooks/use-unread";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import UserProfileCard from "@/components/user-profile-card";
-import { useCall } from "@/features/calls/context/call-context";
 
 function renderContent(content: string) {
   const parts = content.split(/(@\w+)/g);
@@ -58,6 +71,19 @@ function renderContent(content: string) {
     ),
   );
 }
+
+const jumpToMessage = (messageId: string) => {
+  const el = document.getElementById(`message-${messageId}`);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("message-flash");
+    setTimeout(() => {
+      el.classList.remove("message-flash");
+    }, 1800);
+  } else {
+    toast.info("Message is older. Try scrolling up to load more messages.");
+  }
+};
 
 type OtherUser = {
   id: string;
@@ -87,11 +113,11 @@ export function DmView({
   const [messages, setMessages] =
     useState<DmMessageWithUser[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<DmMessageWithUser | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [hasMore, setHasMore] = useState(
     initialMessages.length === PAGINATION_LIMIT,
@@ -296,7 +322,9 @@ export function DmView({
   );
 
   const handleMessageUpdated = useCallback((message: DmMessageWithUser) => {
-    setMessages((prev) => prev.map((m) => (m.id === message.id ? message : m)));
+    setMessages((prev) =>
+      prev.map((m) => (m.id === message.id ? { ...m, ...message } : m)),
+    );
   }, []);
 
   const handleMessageDeleted = useCallback((messageId: string) => {
@@ -419,13 +447,7 @@ export function DmView({
 
   const handleSend = async () => {
     const allUploaded = pendingImages.every((img) => img.remoteUrl !== null);
-    if (
-      (!input.trim() && pendingImages.length === 0) ||
-      !allUploaded ||
-      isSending
-    )
-      return;
-    setIsSending(true);
+    if ((!input.trim() && pendingImages.length === 0) || !allUploaded) return;
 
     const tempId = crypto.randomUUID();
     setMessages((prev) => [
@@ -482,8 +504,6 @@ export function DmView({
     } catch (error) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.error("Network error.");
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -722,7 +742,7 @@ export function DmView({
               {replyingTo.user.name}
             </span>
             <span className="text-zinc-400 truncate">
-              {replyingTo.content ?? "📷 Image"}
+              {getMessageFallbackText(replyingTo)}
             </span>
           </div>
           <button
@@ -739,26 +759,59 @@ export function DmView({
           <input
             ref={imageInputRef}
             type="file"
-            accept="image/png, image/jpeg, image/webp"
             multiple
             className="hidden"
             onChange={handleImageSelect}
           />
-          <button
-            type="button"
-            className="shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-30 transition-colors"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={
-              pendingImages.length >= MAX_IMAGE_PER_MESSAGE || isUploadingImages
-            }
-          >
-            <ImageIcon className="size-4" />
-          </button>
+          <Popover open={attachOpen} onOpenChange={setAttachOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="shrink-0 size-7 rounded-md flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <Plus className="size-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="start"
+              sideOffset={12}
+              className="w-48 p-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
+            >
+              <button
+                onClick={() => {
+                  imageInputRef.current?.click();
+                  setAttachOpen(false);
+                }}
+                disabled={
+                  pendingImages.length >= MAX_IMAGE_PER_MESSAGE ||
+                  isUploadingImages
+                }
+                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <ImageIcon className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                <span>Upload a File</span>
+              </button>
+              <button
+                disabled
+                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
+              >
+                <FileUp className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
+                <span>Create Poll</span>
+              </button>
+              <button
+                disabled
+                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
+              >
+                <Film className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
+                <span>Use Apps</span>
+              </button>
+            </PopoverContent>
+          </Popover>
           <textarea
             value={input}
             onChange={handleInputChange}
             placeholder={`Message ${otherUser.name}`}
-            disabled={isSending}
             onKeyDown={handleKeyDown}
             rows={1}
             className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
@@ -769,7 +822,6 @@ export function DmView({
             onClick={handleSend}
             disabled={
               (!input.trim() && pendingImages.length === 0) ||
-              isSending ||
               !pendingImages.every((img) => img.remoteUrl !== null)
             }
             className="size-7 shrink-0 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0"
@@ -824,149 +876,234 @@ function MessageItem({
   return (
     <div
       id={`message-${message.id}`}
-      className="relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50"
+      className={`relative flex flex-col px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50 ${
+        message.replyTo ? "mt-3.5 pt-1.5 pb-1.5" : "mt-2.5 py-1.5"
+      }`}
     >
-      <UserProfileCard
-        userId={message.user.id}
-        name={message.user.name}
-        image={message.user.image}
-        isCurrentUser={message.user.id === currentUserId}
-        side="right"
-      >
-        <button className="shrink-0 cursor-pointer rounded-full">
-          <Avatar className="size-8">
-            <AvatarImage src={message.user.image ?? ""} />
-            <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-              {getInitials(message.user.name)}
+      {message.replyTo && (
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 pl-[34px] pb-1 min-w-0">
+          <div className="absolute left-[32px] top-[14px] w-3 h-3 border-l-2 border-t-2 border-zinc-200 dark:border-zinc-800 rounded-tl-[6px] pointer-events-none" />
+
+          <Avatar className="size-4 shrink-0">
+            <AvatarImage src={message.replyTo.user.image ?? ""} />
+            <AvatarFallback className="text-[6px] font-semibold text-zinc-700 dark:text-zinc-200">
+              {getInitials(message.replyTo.user.name)}
             </AvatarFallback>
           </Avatar>
-        </button>
-      </UserProfileCard>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
-            {message.user.name}
-          </span>
-          <span className="text-xs text-zinc-400" suppressHydrationWarning>
-            {time}
-          </span>
-        </div>
-
-        {message.replyTo && (
-          <div className="flex items-center gap-1.5 border-l-2 border-zinc-300 dark:border-zinc-600 pl-2 py-0.5 mb-0.5 rounded-sm">
-            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 shrink-0">
-              {message.replyTo.user.name}
+          <button
+            onClick={() => jumpToMessage(message.replyTo!.id)}
+            className="flex items-center gap-1 text-left min-w-0 transition-colors cursor-pointer group/reply-btn text-zinc-450 dark:text-zinc-450"
+          >
+            <span className="font-semibold text-zinc-500 dark:text-zinc-400 hover:underline hover:text-zinc-800 dark:hover:text-zinc-200 shrink-0">
+              @{message.replyTo.user.name}
             </span>
-            <span className="text-xs text-zinc-400 truncate">
-              {message.replyTo.content ?? "📷 Image"}
+            <span className="truncate hover:text-zinc-700 dark:hover:text-zinc-350 font-medium">
+              {getMessageFallbackText(message.replyTo)}
+            </span>
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-start gap-3 w-full">
+        <UserProfileCard
+          userId={message.user.id}
+          name={message.user.name}
+          image={message.user.image}
+          isCurrentUser={message.user.id === currentUserId}
+          side="right"
+        >
+          <button className="shrink-0 cursor-pointer rounded-full outline-none">
+            <Avatar className="size-8">
+              <AvatarImage src={message.user.image ?? ""} />
+              <AvatarFallback className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                {getInitials(message.user.name)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </UserProfileCard>
+
+        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
+              {message.user.name}
+            </span>
+            <span className="text-xs text-zinc-400" suppressHydrationWarning>
+              {time}
             </span>
           </div>
-        )}
 
-        {isEditing ? (
-          <div className="flex flex-col gap-2 mt-1">
-            <textarea
-              ref={editRef}
-              defaultValue={message.content ?? ""}
-              rows={1}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setIsEditing(false);
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  const content = editRef.current?.value.trim();
-                  if (content) {
-                    onEdit(message.id, content);
-                    setIsEditing(false);
-                  }
-                }
-              }}
-              className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md px-3 py-2 resize-none outline-none w-full focus:ring-2 focus:ring-zinc-400/50 dark:focus:ring-zinc-500/50 transition-shadow"
-              style={{ fieldSizing: "content" } as React.CSSProperties}
-            />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  const content = editRef.current?.value.trim();
-                  if (content) {
-                    onEdit(message.id, content);
-                    setIsEditing(false);
+          {isEditing ? (
+            <div className="flex flex-col gap-2 mt-1">
+              <textarea
+                ref={editRef}
+                defaultValue={message.content ?? ""}
+                rows={1}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setIsEditing(false);
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    const content = editRef.current?.value.trim();
+                    if (content) {
+                      onEdit(message.id, content);
+                      setIsEditing(false);
+                    }
                   }
                 }}
-                className="text-xs font-medium px-3 py-1 rounded-md bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="text-xs font-medium px-3 py-1 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-            <span className="text-[11px] text-zinc-400">
-              Press Enter to save · Esc to cancel
-            </span>
-          </div>
-        ) : (
-          message.content && (
-            <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
-              {renderContent(message.content)}
-            </p>
-          )
-        )}
-
-        {message.images.length > 0 && <ImageGrid images={message.images} />}
-
-        {message.directMessageReactions.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {Object.entries(
-              message.directMessageReactions.reduce(
-                (acc, r) => {
-                  if (!acc[r.emoji]) {
-                    acc[r.emoji] = { count: 0, hasReacted: false, users: [] };
-                  }
-                  acc[r.emoji].count++;
-                  if (r.userId === currentUserId)
-                    acc[r.emoji].hasReacted = true;
-                  acc[r.emoji].users.push(r.user.name);
-                  return acc;
-                },
-                {} as Record<
-                  string,
-                  { count: number; hasReacted: boolean; users: string[] }
-                >,
-              ),
-            ).map(([emoji, { count, hasReacted, users }]) => (
-              <Tooltip key={emoji}>
-                <TooltipTrigger asChild>
-                  <button
-                    key={emoji}
-                    onClick={() => onReaction(message.id, emoji)}
-                    className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                      hasReacted
-                        ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
-                        : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                    }`}
-                  >
-                    <span>{emoji}</span>
-                    <span className="text-zinc-600 dark:text-zinc-400">
-                      {count}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="text-xs max-w-[200px] text-center"
+                className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md px-3 py-2 resize-none outline-none w-full focus:ring-2 focus:ring-zinc-400/50 dark:focus:ring-zinc-500/50 transition-shadow"
+                style={{ fieldSizing: "content" } as React.CSSProperties}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const content = editRef.current?.value.trim();
+                    if (content) {
+                      onEdit(message.id, content);
+                      setIsEditing(false);
+                    }
+                  }}
+                  className="text-xs font-medium px-3 py-1 rounded-md bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
                 >
-                  {users.length < 3
-                    ? users.join(", ")
-                    : `${users.slice(0, 2).join(", ")} and ${users.length - 2} other${users.length - 2 > 1 ? "s" : ""}`}
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        )}
+                  Save
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="text-xs font-medium px-3 py-1 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              <span className="text-[11px] text-zinc-400">
+                Press Enter to save · Esc to cancel
+              </span>
+            </div>
+          ) : (
+            message.content && (
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
+                {renderContent(message.content)}
+              </p>
+            )
+          )}
+
+          {message.images.length > 0 &&
+            (() => {
+              const parsedAttachments = message.images.map(getAttachmentMeta);
+              const images = parsedAttachments
+                .filter((a) => a.isImg)
+                .map((a) => a.downloadUrl);
+              const videos = parsedAttachments.filter((a) => a.isVid);
+              const files = parsedAttachments.filter(
+                (a) => !a.isImg && !a.isVid,
+              );
+
+              return (
+                <div className="flex flex-col gap-2 mt-1">
+                  {images.length > 0 && <ImageGrid images={images} />}
+
+                  {videos.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {videos.map((vid) => (
+                        <div
+                          key={vid.downloadUrl}
+                          className="relative max-w-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-855 bg-black/10 dark:bg-black/40 shadow-sm"
+                        >
+                          <video
+                            src={vid.downloadUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="max-w-full max-h-[300px] w-auto h-auto block object-contain mx-auto"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {files.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {files.map((file) => (
+                        <div
+                          key={file.downloadUrl}
+                          className="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 max-w-sm group/file hover:bg-zinc-100/40 dark:hover:bg-zinc-900/50 transition-all duration-200"
+                        >
+                          <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 shrink-0">
+                            <FileUp className="size-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate"
+                              title={file.name}
+                            >
+                              {file.name}
+                            </p>
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={file.name}
+                              className="text-[10px] text-blue-500 hover:underline mt-0.5 block font-medium"
+                            >
+                              Download File
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {message.directMessageReactions.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {Object.entries(
+                message.directMessageReactions.reduce(
+                  (acc, r) => {
+                    if (!acc[r.emoji]) {
+                      acc[r.emoji] = { count: 0, hasReacted: false, users: [] };
+                    }
+                    acc[r.emoji].count++;
+                    if (r.userId === currentUserId)
+                      acc[r.emoji].hasReacted = true;
+                    acc[r.emoji].users.push(r.user.name);
+                    return acc;
+                  },
+                  {} as Record<
+                    string,
+                    { count: number; hasReacted: boolean; users: string[] }
+                  >,
+                ),
+              ).map(([emoji, { count, hasReacted, users }]) => (
+                <Tooltip key={emoji}>
+                  <TooltipTrigger asChild>
+                    <button
+                      key={emoji}
+                      onClick={() => onReaction(message.id, emoji)}
+                      className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                        hasReacted
+                          ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
+                          : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      <span>{emoji}</span>
+                      <span className="text-zinc-600 dark:text-zinc-400">
+                        {count}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    className="text-xs max-w-[200px] text-center"
+                  >
+                    {users.length < 3
+                      ? users.join(", ")
+                      : `${users.slice(0, 2).join(", ")} and ${users.length - 2} other${users.length - 2 > 1 ? "s" : ""}`}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {!isEditing && (
