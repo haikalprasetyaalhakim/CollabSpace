@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Slider } from "@/components/ui/slider";
 import { usePresence } from "@/hooks/use-presence";
-import { getInitials } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import {
   Mic,
   MicOff,
@@ -21,6 +21,7 @@ import {
   VideoOff,
   Volume2,
 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type User = {
@@ -42,6 +43,10 @@ export default function VoiceChannelView({
   members,
   currentUserId,
 }: Props) {
+  const router = useRouter();
+  const params = useParams();
+  const workspaceId = params?.workspaceId as string;
+
   const [isMounted, setIsMounted] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -49,9 +54,6 @@ export default function VoiceChannelView({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [remoteScreenOwnerName, setRemoteScreenOwnerName] = useState<
-    string | null
-  >(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -62,12 +64,53 @@ export default function VoiceChannelView({
   const [remoteVideoEnabled, setRemoteVideoEnabled] = useState<
     Record<string, boolean>
   >({});
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState<
+    Record<string, boolean>
+  >({});
   const [hasJoinedPresence, setHasJoinedPresence] = useState(false);
+
+  const remoteScreenOwnerId = useMemo(() => {
+    return (
+      Object.entries(remoteScreenSharing).find(
+        ([_, isSharing]) => isSharing,
+      )?.[0] || null
+    );
+  }, [remoteScreenSharing]);
+
+  const remoteScreenOwnerName = useMemo(() => {
+    if (!remoteScreenOwnerId) return null;
+    return members.find((m) => m.id === remoteScreenOwnerId)?.name || "User";
+  }, [remoteScreenOwnerId, members]);
+
+  const activePeerIds = useMemo(() => {
+    return Array.from(activeVoiceChannels.entries())
+      .filter(([uid, cid]) => cid === channelId && uid !== currentUserId)
+      .map(([uid]) => uid);
+  }, [activeVoiceChannels, channelId, currentUserId]);
+
+  const MAX_USERS = 5;
+  const isRoomFull = activePeerIds.length >= MAX_USERS;
+
+  useEffect(() => {
+    if (isConnected && isRoomFull) {
+      setIsConnected(false);
+      sessionStorage.setItem(`voice-disconnected-${channelId}`, "true");
+    }
+  }, [isConnected, isRoomFull, channelId]);
+
+  const handleGoBack = () => {
+    if (workspaceId) {
+      router.push(`/workspaces/${workspaceId}`);
+    } else {
+      router.push("/");
+    }
+  };
 
   const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
   const iceCandidateQueues = useRef<Record<string, RTCIceCandidate[]>>({});
   const localStreamRef = useRef<MediaStream | null>(null);
   const lastStateRef = useRef({ isMuted, isCameraOff, isSpeaking });
+  const pendingOfferRef = useRef<{ senderId: string; offer: any } | null>(null);
 
   const createPeerConnection = (peerId: string) => {
     if (pcsRef.current[peerId]) return pcsRef.current[peerId];
@@ -76,17 +119,57 @@ export default function VoiceChannelView({
       iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
     });
 
-    const stream = localStreamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
+    if (currentUserId < peerId) {
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+      pc.addTransceiver("video", { direction: "sendrecv" });
+
+      const stream = localStreamRef.current;
+      if (stream) {
+        const audioTrack = stream.getAudioTracks()[0];
+        const videoTrack = stream.getVideoTracks()[0];
+
+        const audioTransceiver = pc
+          .getTransceivers()
+          .find((t) => t.receiver.track.kind === "audio");
+        if (audioTransceiver && audioTrack) {
+          audioTransceiver.sender.replaceTrack(audioTrack);
+        }
+
+        const videoTransceiver = pc
+          .getTransceivers()
+          .find((t) => t.receiver.track.kind === "video");
+        if (videoTransceiver && videoTrack) {
+          videoTransceiver.sender.replaceTrack(videoTrack);
+        }
+      }
     }
 
     pcsRef.current[peerId] = pc;
 
     pc.onconnectionstatechange = () => {
       console.log(`🔗 Connection state to ${peerId}: ${pc.connectionState}`);
+    };
+
+    pc.onnegotiationneeded = async () => {
+      if (currentUserId < peerId) {
+        try {
+          console.log(`🔄 Negotiation needed for peer: ${peerId}`);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          await fetch("/api/channels/voice-signal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              targetUserId: peerId,
+              channelId,
+              type: "offer",
+              data: offer,
+            }),
+          });
+        } catch (error) {
+          console.error(`Failed during negotiation with ${peerId}:`, error);
+        }
+      }
     };
 
     pc.onicecandidate = (event) => {
@@ -106,9 +189,27 @@ export default function VoiceChannelView({
 
     pc.ontrack = (event) => {
       console.log(`🎥 ontrack triggered from peer: ${peerId}`, event.streams);
-      const remoteStream = event.streams[0];
+      let remoteStream = event.streams[0];
+      if (!remoteStream && event.track) {
+        remoteStream = new MediaStream([event.track]);
+      }
       if (remoteStream) {
-        setRemoteStreams((prev) => ({ ...prev, [peerId]: remoteStream }));
+        setRemoteStreams((prev) => {
+          const existingStream = prev[peerId];
+          if (existingStream) {
+            existingStream.getTracks().forEach((track) => {
+              if (track.id === event.track.id) {
+                existingStream.removeTrack(track);
+              }
+            });
+            existingStream.addTrack(event.track);
+            return {
+              ...prev,
+              [peerId]: new MediaStream(existingStream.getTracks()),
+            };
+          }
+          return { ...prev, [peerId]: remoteStream };
+        });
       }
     };
 
@@ -120,72 +221,131 @@ export default function VoiceChannelView({
 
     if (!localStream) return;
 
-    const localVideoTrack = localStream.getVideoTracks()[0] ?? null;
+    if (pendingOfferRef.current) {
+      const { senderId, offer } = pendingOfferRef.current;
+      pendingOfferRef.current = null;
+      (async () => {
+        const pc = createPeerConnection(senderId);
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+          const audioTrack = localStream.getAudioTracks()[0];
+          const videoTrack = localStream.getVideoTracks()[0];
+
+          const audioTransceiver = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === "audio");
+          if (audioTransceiver && audioTrack) {
+            audioTransceiver.direction = "sendrecv";
+            await audioTransceiver.sender.replaceTrack(audioTrack);
+          }
+
+          const videoTransceiver = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === "video");
+          if (videoTransceiver && videoTrack) {
+            videoTransceiver.direction = "sendrecv";
+            await videoTransceiver.sender.replaceTrack(videoTrack);
+          }
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          await fetch("/api/channels/voice-signal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              targetUserId: senderId,
+              channelId,
+              type: "answer",
+              data: answer,
+            }),
+          });
+
+          const queue = iceCandidateQueues.current[senderId] ?? [];
+          for (const candidate of queue) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+          iceCandidateQueues.current[senderId] = [];
+        } catch (error) {
+          console.error(
+            `Failed to respond to queued offer from ${senderId}:`,
+            error,
+          );
+        }
+      })();
+    }
+
+    const audioTrack = localStream.getAudioTracks()[0] ?? null;
+    const videoTrack = localStream.getVideoTracks()[0] ?? null;
 
     Object.values(pcsRef.current).forEach((pc) => {
       const transceivers = pc.getTransceivers();
 
-      localStream.getTracks().forEach((track) => {
-        const transceiver = transceivers.find(
-          (t) => t.receiver.track.kind === track.kind,
-        );
-
-        if (transceiver && transceiver.sender) {
-          transceiver.sender.replaceTrack(track);
-        } else {
-          pc.addTrack(track, localStream);
-        }
-      });
+      const audioTransceiver = transceivers.find(
+        (t) => t.receiver.track.kind === "audio",
+      );
+      if (audioTransceiver) {
+        audioTransceiver.sender.replaceTrack(audioTrack);
+      }
 
       const videoTransceiver = transceivers.find(
         (t) => t.receiver.track.kind === "video",
       );
-      if (videoTransceiver && videoTransceiver.sender && !localVideoTrack) {
-        videoTransceiver.sender.replaceTrack(null);
+      if (videoTransceiver) {
+        videoTransceiver.sender.replaceTrack(videoTrack);
       }
     });
   }, [localStream]);
 
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected || !localStream) return;
 
-    activePeerIds.forEach(async (peerId) => {
+    activePeerIds.forEach((peerId) => {
       if (currentUserId < peerId) {
         if (!pcsRef.current[peerId]) {
-          const pc = createPeerConnection(peerId);
-
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            await fetch("/api/channels/voice-signal", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                targetUserId: peerId,
-                channelId,
-                type: "offer",
-                data: offer,
-              }),
-            });
-
-            console.log(`📤 Successfully sent Offer to peer: ${peerId}`);
-          } catch (error) {
-            console.error(`Failed to create offer to ${peerId}:`, error);
-          }
+          createPeerConnection(peerId);
         }
       }
     });
-  }, [isConnected, activeVoiceChannels, currentUserId, channelId]);
+  }, [isConnected, localStream, activePeerIds, currentUserId, channelId]);
 
   useEffect(() => {
     const handleVoiceOffer = async (e: Event) => {
       const { senderId, data: offer } = (e as CustomEvent).detail;
 
+      if (!localStreamRef.current) {
+        pendingOfferRef.current = { senderId, offer };
+        console.log("Queued offer from", senderId);
+        return;
+      }
+
       const pc = createPeerConnection(senderId);
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+        const stream = localStreamRef.current;
+        if (stream) {
+          const audioTrack = stream.getAudioTracks()[0];
+          const videoTrack = stream.getVideoTracks()[0];
+
+          const audioTransceiver = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === "audio");
+          if (audioTransceiver && audioTrack) {
+            audioTransceiver.direction = "sendrecv";
+            await audioTransceiver.sender.replaceTrack(audioTrack);
+          }
+
+          const videoTransceiver = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === "video");
+          if (videoTransceiver && videoTrack) {
+            videoTransceiver.direction = "sendrecv";
+            await videoTransceiver.sender.replaceTrack(videoTrack);
+          }
+        }
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -250,10 +410,15 @@ export default function VoiceChannelView({
 
     const handleVoiceCameraToggle = (e: Event) => {
       const { senderId, data } = (e as CustomEvent).detail;
-      const { isCameraOff: peerCameraOff } = data;
+      const { isCameraOff: peerCameraOff, isScreenSharing: peerScreenSharing } =
+        data;
       setRemoteVideoEnabled((prev) => ({
         ...prev,
         [senderId]: !peerCameraOff,
+      }));
+      setRemoteScreenSharing((prev) => ({
+        ...prev,
+        [senderId]: !!peerScreenSharing,
       }));
     };
 
@@ -271,12 +436,6 @@ export default function VoiceChannelView({
       );
     };
   }, [channelId]);
-
-  const activePeerIds = useMemo(() => {
-    return Array.from(activeVoiceChannels.entries())
-      .filter(([uid, cid]) => cid === channelId && uid !== currentUserId)
-      .map(([uid]) => uid);
-  }, [activeVoiceChannels, channelId, currentUserId]);
 
   useEffect(() => {
     const currentPeers = Object.keys(pcsRef.current);
@@ -429,7 +588,7 @@ export default function VoiceChannelView({
     if (
       !hasJoinedPresence ||
       lastStateRef.current.isMuted !== isMuted ||
-      lastStateRef.current.isCameraOff !== isCameraOff ||
+      lastStateRef.current.isCameraOff !== (isCameraOff && !isScreenSharing) ||
       lastStateRef.current.isSpeaking !== isSpeaking
     ) {
       fetch("/api/channels/voice-presence", {
@@ -441,12 +600,16 @@ export default function VoiceChannelView({
           name: user?.name,
           image: user?.image,
           isMuted,
-          isCameraOff,
+          isCameraOff: isCameraOff && !isScreenSharing,
           isSpeaking,
         }),
       });
       setHasJoinedPresence(true);
-      lastStateRef.current = { isMuted, isCameraOff, isSpeaking };
+      lastStateRef.current = {
+        isMuted,
+        isCameraOff: isCameraOff && !isScreenSharing,
+        isSpeaking,
+      };
     }
   }, [
     isConnected,
@@ -455,10 +618,10 @@ export default function VoiceChannelView({
     hasJoinedPresence,
     isMuted,
     isCameraOff,
+    isScreenSharing,
     isSpeaking,
     currentUserId,
     members,
-    hasJoinedPresence,
   ]);
 
   useEffect(() => {
@@ -488,6 +651,21 @@ export default function VoiceChannelView({
         localStream.getTracks().forEach((track) => track.stop());
         setLocalStream(null);
       }
+      if (screenStream) {
+        screenStream.getTracks().forEach((track) => track.stop());
+        setScreenStream(null);
+      }
+      setIsScreenSharing(false);
+
+      Object.keys(pcsRef.current).forEach((peerId) => {
+        if (pcsRef.current[peerId]) {
+          pcsRef.current[peerId].close();
+        }
+      });
+      pcsRef.current = {};
+      setRemoteStreams({});
+      setRemoteVideoEnabled({});
+      setRemoteScreenSharing({});
       return;
     }
 
@@ -541,11 +719,14 @@ export default function VoiceChannelView({
           targetUserId: peerId,
           channelId,
           type: "camera-toggle",
-          data: { isCameraOff },
+          data: {
+            isCameraOff: isCameraOff && !isScreenSharing,
+            isScreenSharing,
+          },
         }),
       });
     });
-  }, [isConnected, isCameraOff, activePeerIds, channelId]);
+  }, [isConnected, isCameraOff, isScreenSharing, activePeerIds, channelId]);
 
   useEffect(() => {
     if (!localStream) return;
@@ -588,6 +769,16 @@ export default function VoiceChannelView({
       if (screenStream) {
         screenStream.getTracks().forEach((track) => track.stop());
         setScreenStream(null);
+
+        const cameraTrack = localStream?.getVideoTracks()[0] || null;
+        Object.values(pcsRef.current).forEach((pc) => {
+          const sender = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === "video")?.sender;
+          if (sender) {
+            sender.replaceTrack(cameraTrack);
+          }
+        });
       }
       return;
     }
@@ -599,7 +790,17 @@ export default function VoiceChannelView({
         });
         setScreenStream(stream);
 
-        stream.getVideoTracks()[0].onended = () => {
+        const screenTrack = stream.getVideoTracks()[0];
+        Object.values(pcsRef.current).forEach((pc) => {
+          const sender = pc
+            .getTransceivers()
+            .find((t) => t.receiver.track.kind === "video")?.sender;
+          if (sender) {
+            sender.replaceTrack(screenTrack);
+          }
+        });
+
+        screenTrack.onended = () => {
           setIsScreenSharing(false);
         };
       } catch (error) {
@@ -677,7 +878,7 @@ export default function VoiceChannelView({
               />
             ) : (
               <Avatar className={isMini ? "size-10" : "size-16"}>
-                <AvatarImage src={currentUser?.image ?? ""} />
+                {currentUser?.image && <AvatarImage src={currentUser.image} />}
                 <AvatarFallback className="bg-zinc-800 text-lg font-bold text-zinc-300">
                   {initials}
                 </AvatarFallback>
@@ -819,38 +1020,61 @@ export default function VoiceChannelView({
         <span className="text-sm font-semibold text-zinc-200 truncate">
           {channelName}
         </span>
-        <button
-          onClick={() =>
-            setRemoteScreenOwnerName(remoteScreenOwnerName ? null : "Ahmad")
-          }
-          className="ml-auto text-[10px] text-zinc-500 hover:text-zinc-300 border border-zinc-800 hover:border-zinc-700 rounded px-2.5 py-1 transition-colors"
-        >
-          {remoteScreenOwnerName
-            ? "🔴 Stop Presenter Mock"
-            : "📺 Simulate Remote Presenter"}
-        </button>
       </header>
       <div className="flex-1 flex flex-col min-h-0">
         {!isConnected ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 bg-linear-to-b from-zinc-900/30 to-zinc-950">
-            <div className="max-w-md w-full bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 backdrop-blur-xl shadow-2xl flex flex-col items-center text-center">
-              <div className="size-16 rounded-full bg-zinc-800/50 border border-zinc-850 flex items-center justify-center mb-6">
-                <Volume2 className="size-8 text-zinc-300 animate-bounce" />
+            {isRoomFull ? (
+              <div className="max-w-md w-full bg-zinc-900/40 border border-red-950/50 rounded-2xl p-8 backdrop-blur-xl shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200">
+                <div className="size-16 rounded-full bg-red-950/30 border border-red-900/40 flex items-center justify-center mb-6 relative">
+                  <Volume2 className="size-8 text-red-400" />
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] font-bold text-white items-center justify-center">
+                      !
+                    </span>
+                  </span>
+                </div>
+                <h2 className="text-xl font-bold text-zinc-50 mb-2">
+                  Voice Channel is Full
+                </h2>
+                <p className="text-sm text-zinc-400 mb-8 max-w-sm">
+                  "{channelName}" has reached its maximum capacity of{" "}
+                  {MAX_USERS} member{MAX_USERS > 1 ? "s" : ""} to preserve
+                  connection quality under Mesh WebRTC.
+                </p>
+                <div className="w-full flex flex-col gap-3">
+                  <div className="py-2.5 px-4 rounded-xl bg-red-950/20 border border-red-900/20 text-xs font-medium text-red-400">
+                    Capacity: {MAX_USERS} / {MAX_USERS} participants
+                  </div>
+                  <Button
+                    onClick={handleGoBack}
+                    className="w-full bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-zinc-50 border-0 shadow-lg py-6 text-sm font-semibold rounded-xl transition-all"
+                  >
+                    Return to Workspace
+                  </Button>
+                </div>
               </div>
-              <h2 className="text-xl font-bold text-zinc-50 mb-2">
-                Ready to Join Back?
-              </h2>
-              <p className="text-sm text-zinc-400 mb-8 max-w-sm">
-                Join "{channelName}" again to share screen, camera, or voice
-                with members.
-              </p>
-              <Button
-                onClick={handleJoin}
-                className="w-full bg-zinc-50 text-zinc-950 hover:bg-zinc-200 border-0 shadow-lg py-6 text-sm font-semibold rounded-xl transition-all"
-              >
-                Join Voice
-              </Button>
-            </div>
+            ) : (
+              <div className="max-w-md w-full bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 backdrop-blur-xl shadow-2xl flex flex-col items-center text-center">
+                <div className="size-16 rounded-full bg-zinc-800/50 border border-zinc-850 flex items-center justify-center mb-6">
+                  <Volume2 className="size-8 text-zinc-300 animate-bounce" />
+                </div>
+                <h2 className="text-xl font-bold text-zinc-50 mb-2">
+                  Ready to Join Back?
+                </h2>
+                <p className="text-sm text-zinc-400 mb-8 max-w-sm">
+                  Join "{channelName}" again to share screen, camera, or voice
+                  with members.
+                </p>
+                <Button
+                  onClick={handleJoin}
+                  className="w-full bg-zinc-50 text-zinc-950 hover:bg-zinc-200 border-0 shadow-lg py-6 text-sm font-semibold rounded-xl transition-all"
+                >
+                  Join Voice
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col p-6 min-h-0 justify-between">
@@ -870,51 +1094,106 @@ export default function VoiceChannelView({
                     const peer = members.find((m) => m.id === peerId);
                     const peerInitials = peer ? getInitials(peer.name) : "U";
                     const stream = remoteStreams[peerId];
-                    const isVideoOn = remoteVideoEnabled[peerId] ?? false;
+                    const isPeerScreenSharing =
+                      remoteScreenSharing[peerId] ?? false;
+                    const isVideoOn =
+                      (remoteVideoEnabled[peerId] ?? false) &&
+                      !isPeerScreenSharing;
 
                     const participant = voiceParticipants.get(peerId);
                     const isPeerMuted = participant?.isMuted ?? false;
+                    const volume = userVolumes[peerId] ?? 100;
 
                     return (
-                      <div
-                        key={peerId}
-                        className="relative aspect-video rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden w-full flex items-center justify-center"
-                      >
-                        {isVideoOn && stream ? (
-                          <video
-                            autoPlay
-                            playsInline
-                            ref={(el) => {
-                              if (el && el.srcObject !== stream) {
-                                el.srcObject = stream;
-                              }
-                            }}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Avatar className="size-16">
-                            <AvatarImage src={peer?.image ?? ""} />
-                            <AvatarFallback className="bg-zinc-800 text-lg font-bold text-zinc-300">
-                              {peerInitials}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
+                      <ContextMenu key={peerId}>
+                        <ContextMenuTrigger asChild>
+                          <div className="relative aspect-video rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden w-full flex items-center justify-center">
+                            {stream && (
+                              <audio
+                                autoPlay
+                                playsInline
+                                ref={(el) => {
+                                  if (el) {
+                                    if (el.srcObject !== stream) {
+                                      el.srcObject = stream;
+                                    }
+                                    el.volume = volume / 100;
+                                  }
+                                }}
+                                style={{ display: "none" }}
+                              />
+                            )}
 
-                        <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md flex items-center gap-1.5 z-10 max-w-[80%]">
-                          <span className="text-xs font-medium text-zinc-200 truncate">
-                            {peer?.name ?? peerId.slice(0, 8)}
-                          </span>
-                          {isPeerMuted && (
-                            <MicOff className="size-3 text-red-500" />
-                          )}
-                        </div>
-                      </div>
+                            {isVideoOn && stream ? (
+                              <video
+                                autoPlay
+                                playsInline
+                                ref={(el) => {
+                                  if (el && el.srcObject !== stream) {
+                                    el.srcObject = stream;
+                                  }
+                                }}
+                                className={cn(
+                                  "w-full h-full",
+                                  isPeerScreenSharing
+                                    ? "object-contain bg-black"
+                                    : "object-cover",
+                                )}
+                              />
+                            ) : (
+                              <Avatar className="size-16">
+                                {peer?.image && (
+                                  <AvatarImage src={peer.image} />
+                                )}
+                                <AvatarFallback className="bg-zinc-800 text-lg font-bold text-zinc-300">
+                                  {peerInitials}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
+
+                            <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md flex items-center gap-1.5 z-10 max-w-[80%]">
+                              <span className="text-xs font-medium text-zinc-200 truncate">
+                                {peer?.name ?? peerId.slice(0, 8)}
+                              </span>
+                              {isPeerMuted && (
+                                <MicOff className="size-3 text-red-500" />
+                              )}
+                            </div>
+                          </div>
+                        </ContextMenuTrigger>
+
+                        <ContextMenuContent className="w-64 bg-zinc-900 border border-zinc-800 text-zinc-200 p-2.5">
+                          <ContextMenuLabel className="text-xs text-zinc-400 font-medium px-2 py-1.5">
+                            User Volume: {peer?.name || "User"}
+                          </ContextMenuLabel>
+                          <ContextMenuSeparator className="bg-zinc-800 my-1" />
+                          <div className="px-2 py-2 flex flex-col gap-2">
+                            <div className="flex justify-between text-[10px] font-semibold text-zinc-400">
+                              <span>VOLUME</span>
+                              <span>{volume}%</span>
+                            </div>
+                            <Slider
+                              value={[volume]}
+                              min={0}
+                              max={100}
+                              step={1}
+                              onValueChange={(val) =>
+                                setUserVolumes((prev) => ({
+                                  ...prev,
+                                  [peerId]: val[0],
+                                }))
+                              }
+                              className="py-1"
+                            />
+                          </div>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     );
                   })}
 
                 {renderUserScreenCard()}
 
-                {remoteScreenOwnerName && (
+                {remoteScreenOwnerName && remoteScreenOwnerId && (
                   <div
                     onClick={() =>
                       setFocusedCardId(
@@ -925,10 +1204,26 @@ export default function VoiceChannelView({
                     }
                     className="relative aspect-video rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all duration-500 w-full"
                   >
-                    <ScreenShare className="size-10 text-zinc-700 animate-pulse mb-2" />
-                    <span className="text-xs text-zinc-400">
-                      Screen feed from {remoteScreenOwnerName}
-                    </span>
+                    {remoteStreams[remoteScreenOwnerId] ? (
+                      <video
+                        autoPlay
+                        playsInline
+                        ref={(el) => {
+                          const stream = remoteStreams[remoteScreenOwnerId];
+                          if (el && el.srcObject !== stream) {
+                            el.srcObject = stream;
+                          }
+                        }}
+                        className="absolute inset-0 size-full object-contain bg-black"
+                      />
+                    ) : (
+                      <>
+                        <ScreenShare className="size-10 text-zinc-700 animate-pulse mb-2" />
+                        <span className="text-xs text-zinc-400">
+                          Screen feed from {remoteScreenOwnerName}
+                        </span>
+                      </>
+                    )}
                     <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md z-10">
                       <span className="text-xs font-medium text-zinc-200 truncate">
                         {remoteScreenOwnerName}'s Screen
@@ -943,15 +1238,31 @@ export default function VoiceChannelView({
                   {focusedCardId === "user-cam" && renderUserCamCard()}
                   {focusedCardId === "user-screen" && renderUserScreenCard()}
 
-                  {focusedCardId === "remote-screen" && (
+                  {focusedCardId === "remote-screen" && remoteScreenOwnerId && (
                     <div
                       onClick={() => setFocusedCardId(null)}
                       className="relative size-full bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all rounded-xl"
                     >
-                      <ScreenShare className="size-20 text-zinc-700 animate-pulse mb-3" />
-                      <span className="text-sm text-zinc-400">
-                        Presenting: {remoteScreenOwnerName}'s Screen
-                      </span>
+                      {remoteStreams[remoteScreenOwnerId] ? (
+                        <video
+                          autoPlay
+                          playsInline
+                          ref={(el) => {
+                            const stream = remoteStreams[remoteScreenOwnerId];
+                            if (el && el.srcObject !== stream) {
+                              el.srcObject = stream;
+                            }
+                          }}
+                          className="absolute inset-0 size-full object-contain bg-black"
+                        />
+                      ) : (
+                        <>
+                          <ScreenShare className="size-20 text-zinc-700 animate-pulse mb-3" />
+                          <span className="text-sm text-zinc-400">
+                            Presenting: {remoteScreenOwnerName}'s Screen
+                          </span>
+                        </>
+                      )}
                       <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/60 backdrop-blur-md z-10">
                         <span className="text-xs font-medium text-zinc-200 truncate">
                           {remoteScreenOwnerName}'s Screen
@@ -964,15 +1275,32 @@ export default function VoiceChannelView({
                   {focusedCardId === "user-cam" && (
                     <>
                       {renderUserScreenCard(true)}
-                      {remoteScreenOwnerName && (
+                      {remoteScreenOwnerName && remoteScreenOwnerId && (
                         <div
                           onClick={() => setFocusedCardId("remote-screen")}
                           className="relative h-full aspect-video rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center cursor-pointer overflow-hidden shrink-0 transition-all"
                         >
-                          <ScreenShare className="size-5 text-zinc-700 mb-1" />
-                          <span className="text-[10px] text-zinc-400">
-                            {remoteScreenOwnerName}
-                          </span>
+                          {remoteStreams[remoteScreenOwnerId] ? (
+                            <video
+                              autoPlay
+                              playsInline
+                              ref={(el) => {
+                                const stream =
+                                  remoteStreams[remoteScreenOwnerId];
+                                if (el && el.srcObject !== stream) {
+                                  el.srcObject = stream;
+                                }
+                              }}
+                              className="absolute inset-0 size-full object-contain bg-black"
+                            />
+                          ) : (
+                            <>
+                              <ScreenShare className="size-5 text-zinc-700 mb-1" />
+                              <span className="text-[10px] text-zinc-400">
+                                {remoteScreenOwnerName}
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
                     </>
@@ -980,15 +1308,32 @@ export default function VoiceChannelView({
                   {focusedCardId === "user-screen" && (
                     <>
                       {renderUserCamCard(true)}
-                      {remoteScreenOwnerName && (
+                      {remoteScreenOwnerName && remoteScreenOwnerId && (
                         <div
                           onClick={() => setFocusedCardId("remote-screen")}
                           className="relative h-full aspect-video rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center cursor-pointer overflow-hidden shrink-0 transition-all"
                         >
-                          <ScreenShare className="size-5 text-zinc-700 mb-1" />
-                          <span className="text-[10px] text-zinc-400">
-                            {remoteScreenOwnerName}
-                          </span>
+                          {remoteStreams[remoteScreenOwnerId] ? (
+                            <video
+                              autoPlay
+                              playsInline
+                              ref={(el) => {
+                                const stream =
+                                  remoteStreams[remoteScreenOwnerId];
+                                if (el && el.srcObject !== stream) {
+                                  el.srcObject = stream;
+                                }
+                              }}
+                              className="absolute inset-0 size-full object-contain bg-black"
+                            />
+                          ) : (
+                            <>
+                              <ScreenShare className="size-5 text-zinc-700 mb-1" />
+                              <span className="text-[10px] text-zinc-400">
+                                {remoteScreenOwnerName}
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
                     </>
