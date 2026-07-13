@@ -10,7 +10,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import BrowserChannelsDialog from "@/features/channels/components/browser-channels-dialog";
 import CreateChannelDialog from "@/features/channels/components/create-channel-dialog";
 import { ChannelType } from "@/generated/prisma/enums";
 import { usePresence } from "@/hooks/use-presence";
@@ -36,7 +35,6 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const pathname = usePathname();
   const params = useParams();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [browseOpen, setBrowseOpen] = useState(false);
   const [dialogType, setDialogType] = useState<"TEXT" | "VOICE">("TEXT");
 
   const { channelUnread, mentionedChannels } = useUnread();
@@ -176,14 +174,6 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
             )}
           </SidebarMenu>
         </SidebarGroupContent>
-        <div className="px-2 mt-1">
-          <button
-            onClick={() => setBrowseOpen(true)}
-            className="w-full text-left text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 px-2 py-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            + Browse channels
-          </button>
-        </div>
       </SidebarGroup>
 
       <SidebarGroup>
@@ -289,7 +279,6 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
         onOpenChange={setDialogOpen}
         defaultType={dialogType}
       />
-      <BrowserChannelsDialog open={browseOpen} onOpenChange={setBrowseOpen} />
     </>
   );
 }
