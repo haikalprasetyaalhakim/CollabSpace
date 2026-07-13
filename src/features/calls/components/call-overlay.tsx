@@ -19,23 +19,20 @@ export default function CallOverlay() {
     otherUser,
     localStream,
     remoteStream,
+    isMuted,
+    isCameraOff,
     isRemoteMuted,
     isRemoteCameraOff,
-    sendControlMessage,
+    toggleMute,
+    toggleCamera,
   } = useCall();
 
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(!isVideo);
   const [localVideoWidth, setLocalVideoWidth] = useState(160);
   const [callDuration, setCallDuration] = useState(0);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    setIsCameraOff(!isVideo);
-  }, [isVideo]);
 
   useEffect(() => {
     if (callState !== "calling") return;
@@ -80,13 +77,13 @@ export default function CallOverlay() {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream, callState]);
+  }, [localStream, callState, isCameraOff]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream && isVideo) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream, isVideo]);
+  }, [remoteStream, isVideo, isRemoteCameraOff]);
 
   useEffect(() => {
     if (remoteAudioRef.current && remoteStream && !isVideo) {
@@ -111,15 +108,11 @@ export default function CallOverlay() {
   }, [isCameraOff, localStream]);
 
   const handleToggleMute = () => {
-    const next = !isMuted;
-    setIsMuted(next);
-    sendControlMessage({ type: "mute-state", isMuted: next, isCameraOff });
+    toggleMute();
   };
 
   const handleToggleCamera = () => {
-    const next = !isCameraOff;
-    setIsCameraOff(next);
-    sendControlMessage({ type: "mute-state", isMuted, isCameraOff: next });
+    toggleCamera();
   };
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
@@ -226,6 +219,7 @@ export default function CallOverlay() {
         )}
         {(callState === "calling" || callState === "connected") &&
           isVideo &&
+          !isCameraOff &&
           localStream && (
             <div
               style={{ width: `${localVideoWidth}px` }}

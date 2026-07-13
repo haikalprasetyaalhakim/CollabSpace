@@ -24,9 +24,13 @@ type CallContextType = {
   otherUser: CallUser | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  isMuted: boolean;
+  isCameraOff: boolean;
   isRemoteMuted: boolean;
   isRemoteCameraOff: boolean;
   incomingMessages: Map<string, DmMessageWithUser[]>;
+  toggleMute: () => void;
+  toggleCamera: () => void;
   sendControlMessage: (msg: object) => void;
   startCall: (user: CallUser, isVideo: boolean) => void;
   acceptCall: () => void;
@@ -58,6 +62,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isRemoteMuted, setIsRemoteMuted] = useState(false);
   const [isRemoteCameraOff, setIsRemoteCameraOff] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false);
+
+  const isMutedRef = useRef(false);
+  const isCameraOffRef = useRef(false);
+  const callStateRef = useRef("idle");
+  const otherUserRef = useRef<CallUser | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -67,12 +78,40 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
+  useEffect(() => {
+    otherUserRef.current = otherUser;
+  }, [otherUser]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    isCameraOffRef.current = isCameraOff;
+  }, [isCameraOff]);
+
+  useEffect(() => {
     const eventSource = new EventSource("/api/notifications");
 
     eventSource.onmessage = async (event) => {
       const data = JSON.parse(event.data);
 
       if (data.type === "call-offer") {
+        if (callStateRef.current !== "idle") {
+          fetch("/api/calls", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              targetUserId: data.sender.id,
+              type: "reject",
+              data: { reason: "busy" },
+            }),
+          }).catch(() => {});
+          return;
+        }
         setOtherUser(data.sender);
         setIsVideo(!!data.isVideo);
 
@@ -86,10 +125,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           await pcRef.current.setRemoteDescription(
             new RTCSessionDescription(data.data),
           );
-
-          if (data.isVideo === false) {
-            setIsVideo(false);
-          }
 
           setCallState("connected");
 
@@ -115,6 +150,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.type === "call-reject") {
+        if (data.data?.reason === "busy") {
+          toast.info(
+            `${otherUserRef.current?.name ?? "User"} is currently busy in another call.`,
+          );
+        }
         cleanupCall();
       }
 
@@ -217,6 +257,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    sendControlMessage({ type: "mute-state", isMuted: next, isCameraOff });
+  };
+
+  const toggleCamera = () => {
+    const next = !isCameraOff;
+    setIsCameraOff(next);
+    sendControlMessage({ type: "mute-state", isMuted, isCameraOff: next });
+  };
+
   const cleanupCall = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
@@ -233,6 +285,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCallState("idle");
     setOtherUser(null);
     setLocalStream(null);
+    setIsMuted(false);
+    setIsCameraOff(false);
+    setIsRemoteMuted(false);
+    setIsRemoteCameraOff(false);
   };
 
   const sendControlMessage = (msg: object) => {
@@ -262,9 +318,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     pc.ondatachannel = (event) => {
       dataChannelRef.current = event.channel;
       event.channel.onmessage = handleDataChannelMessage;
+      event.channel.onopen = () => {
+        if (event.channel.readyState === "open") {
+          event.channel.send(
+            JSON.stringify({
+              type: "mute-state",
+              isMuted: isMutedRef.current,
+              isCameraOff: isCameraOffRef.current,
+            }),
+          );
+        }
+      };
     };
 
     dc.onmessage = handleDataChannelMessage;
+    dc.onopen = () => {
+      if (dc.readyState === "open") {
+        dc.send(
+          JSON.stringify({
+            type: "mute-state",
+            isMuted: isMutedRef.current,
+            isCameraOff: isCameraOffRef.current,
+          }),
+        );
+      }
+    };
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
@@ -328,12 +406,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const startCall = async (user: CallUser, isVideoCall: boolean) => {
     setOtherUser(user);
     setIsVideo(isVideoCall);
+    setIsCameraOff(!isVideoCall);
     setCallState("calling");
 
     try {
       const { stream, actuallyVideo } = await getMediaStream(isVideoCall);
 
-      if (actuallyVideo !== isVideoCall) setIsVideo(false);
+      if (!actuallyVideo) {
+        setIsCameraOff(true);
+      }
 
       setLocalStream(stream);
       localStreamRef.current = stream;
@@ -366,11 +447,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setCallState("connected");
+    setIsCameraOff(!isVideo);
 
     try {
       const { stream, actuallyVideo } = await getMediaStream(isVideo);
 
-      if (isVideo && !actuallyVideo) setIsVideo(false);
+      if (!actuallyVideo) {
+        setIsCameraOff(true);
+      }
 
       setLocalStream(stream);
       localStreamRef.current = stream;
@@ -390,7 +474,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      sendSignal("answer", answer, actuallyVideo);
+      sendSignal("answer", answer);
     } catch (error) {
       console.error("Failed to get call:", error);
       cleanupCall();
@@ -420,15 +504,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         otherUser,
         localStream,
         remoteStream,
+        isMuted,
+        isCameraOff,
         isRemoteMuted,
         isRemoteCameraOff,
         incomingMessages,
-        sendControlMessage,
+        toggleMute,
+        toggleCamera,
         startCall,
         acceptCall,
         declineCall,
         endCall,
         dismissCall,
+        sendControlMessage,
       }}
     >
       {children}
