@@ -53,7 +53,6 @@ import {
   Trash2,
   X,
   Plus,
-  Film,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
