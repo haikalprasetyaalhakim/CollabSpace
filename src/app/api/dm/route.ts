@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   const message = await prisma.directMessage.create({
     data: {
-      id: clientId || undefined,
+      ...(clientId ? { id: clientId } : {}),
       userId: session.user.id,
       conversationId,
       content: content?.trim() ?? null,

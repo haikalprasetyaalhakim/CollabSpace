@@ -67,14 +67,14 @@ export async function POST(request: NextRequest) {
 
   const message = await prisma.message.create({
     data: {
-      id: clientId || undefined,
+      ...(clientId ? { id: clientId } : {}),
       channelId,
       content: content?.trim() ?? null,
       userId: session.user.id,
       images: images ?? [],
       replyToId: parsed.data.replyToId ?? null,
       threadParentId: parsed.data.threadParentId ?? null,
-      createdAt: createdAt ? new Date(createdAt) : undefined,
+      ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
     },
     include: {
       user: { select: { id: true, name: true, image: true, username: true } },
