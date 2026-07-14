@@ -66,7 +66,6 @@ import InviteMemberDialog from "@/components/invite-members-dialog";
 import PersonalizeChannelDialog from "./personalize-channel-dialog";
 import ChannelMemberPanel from "./channel-member-panel";
 import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { LeaveChannelButton } from "./channel-settings-button";
 import { useSearch } from "@/hooks/use-search";
 import {
