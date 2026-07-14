@@ -124,6 +124,9 @@ model Channel {
   channelReads   ChannelRead[]
   pinnedMessages PinnedMessage[]
   mentions       Mention[]
+
+  @@index([workspaceId])
+  @@index([ownerId])
 }
 
 model ChannelMember {
@@ -154,6 +157,11 @@ model Message {
   pinnedMessages   PinnedMessage[]
   mentions         Mention[]
   threadReplies    Message[]         @relation("ThreadReplies")
+
+  @@index([channelId])
+  @@index([userId])
+  @@index([threadParentId])
+  @@index([replyToId])
 }
 
 model Conversation {
@@ -172,6 +180,10 @@ model Conversation {
   conversationReads ConversationRead[]
 
   @@unique([memberOneId, memberTwoId, workspaceId])
+
+  @@index([workspaceId])
+  @@index([memberOneId])
+  @@index([memberTwoId])
 }
 
 model DirectMessage {
@@ -192,6 +204,10 @@ model DirectMessage {
 
   directMessageReactions DirectMessageReaction[]
   replies                DirectMessage[]         @relation("DmReplies")
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([replyToId])
 }
 
 model ChannelRead {
@@ -288,6 +304,7 @@ model Workspace {
   channels      Channel[]
   conversations Conversation[]
 
+  @@index([ownerId])
   @@map("workspace")
 }
 
@@ -300,6 +317,7 @@ model WorkspaceMember {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([workspaceId, userId])
+  @@index([userId])
   @@map("workspace_member")
 }
 

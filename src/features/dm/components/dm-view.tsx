@@ -139,6 +139,7 @@ export function DmView({
   const isAtBottomRef = useRef(!highlightMessageId);
   const topSentinelRef = useRef<HTMLDivElement>(null);
 
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const { data: session } = authClient.useSession();
 
   const { startUpload } = useUploadThing("messageImageUploader", {
@@ -157,7 +158,8 @@ export function DmView({
     },
     onUploadError: (err) => {
       setIsUploadingImages(false);
-      toast.error(`Image upload failed: ${err.message}`);
+      setPendingImages((prev) => prev.filter((img) => img.remoteUrl !== null));
+      toast.error(`Upload failed: ${err.message}`);
     },
   });
 
@@ -299,6 +301,13 @@ export function DmView({
 
   const handleNewMessage = useCallback(
     (message: DmMessageWithUser, clientId?: string) => {
+      if (clientId) {
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(clientId);
+          return next;
+        });
+      }
       setMessages((prev) => {
         if (clientId && prev.some((d) => d.id === clientId)) {
           return prev.map((d) => (d.id === clientId ? message : d));
@@ -451,6 +460,12 @@ export function DmView({
     if ((!input.trim() && pendingImages.length === 0) || !allUploaded) return;
 
     const tempId = crypto.randomUUID();
+    setSendingIds((prev) => {
+      const next = new Set(prev);
+      next.add(tempId);
+      return next;
+    });
+
     setMessages((prev) => [
       ...prev,
       {
@@ -494,6 +509,11 @@ export function DmView({
 
       if (!response.ok) {
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(tempId);
+          return next;
+        });
         const error = await response.json();
         toast.error(error.error ?? "Failed to send message.");
       } else {
@@ -501,6 +521,11 @@ export function DmView({
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? newMessage : m)),
         );
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(tempId);
+          return next;
+        });
       }
     } catch (error) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -650,6 +675,7 @@ export function DmView({
                     onDelete={handleDeleteMessage}
                     onReaction={handleToggleReaction}
                     onReply={handleReply}
+                    isSending={sendingIds.has(msg.id)}
                   />
                   {lastSeenMessageId === msg.id && (
                     <div className="flex justify-end mr-4 -mt-1 mb-1">
@@ -765,7 +791,7 @@ export function DmView({
       )}
 
       <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
+        <div className="flex items-end gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 px-3 py-2.5 focus-within:border-indigo-500/50 dark:focus-within:border-indigo-400/50 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:focus-within:ring-indigo-400/5 transition-all shadow-xs">
           <input
             ref={imageInputRef}
             type="file"
@@ -802,20 +828,6 @@ export function DmView({
                 <ImageIcon className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
                 <span>Upload a File</span>
               </button>
-              <button
-                disabled
-                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
-              >
-                <FileUp className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
-                <span>Create Poll</span>
-              </button>
-              <button
-                disabled
-                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
-              >
-                <Film className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
-                <span>Use Apps</span>
-              </button>
             </PopoverContent>
           </Popover>
           <textarea
@@ -834,7 +846,7 @@ export function DmView({
               (!input.trim() && pendingImages.length === 0) ||
               !pendingImages.every((img) => img.remoteUrl !== null)
             }
-            className="size-7 shrink-0 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0"
+            className="size-7 rounded-lg flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-550 dark:hover:bg-indigo-400 disabled:opacity-35 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 transition-all shadow-md shrink-0 active:scale-95"
           >
             <Send className="size-3.5" />
           </Button>
@@ -851,6 +863,7 @@ function MessageItem({
   onDelete,
   onReaction,
   onReply,
+  isSending = false,
 }: {
   message: DmMessageWithUser;
   currentUserId: string;
@@ -858,6 +871,7 @@ function MessageItem({
   onDelete: (id: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
   onReply: (message: DmMessageWithUser) => void;
+  isSending?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -886,7 +900,7 @@ function MessageItem({
   return (
     <div
       id={`message-${message.id}`}
-      className={`relative flex flex-col px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50 ${
+      className={`relative flex flex-col px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/50 hover:bg-zinc-50 ${isSending ? "opacity-60 select-none pointer-events-none" : ""} ${
         message.replyTo ? "mt-3.5 pt-1.5 pb-1.5" : "mt-2.5 py-1.5"
       }`}
     >
@@ -1116,7 +1130,7 @@ function MessageItem({
         </div>
       </div>
 
-      {!isEditing && (
+      {!isEditing && !isSending && (
         <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 transition-all flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-md">
           <div className="relative">
             <button

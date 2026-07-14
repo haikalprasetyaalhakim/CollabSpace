@@ -3,9 +3,10 @@ import { SidebarInset } from "@/components/ui/sidebar";
 import prisma from "@/lib/prisma";
 import { serverCompReqAuth } from "@/lib/server-comp-req-auth";
 import { getInitials } from "@/lib/utils";
-import { ArrowRight, Hash, MessageSquare } from "lucide-react";
+import { ArrowRight, Hash, ImageIcon, MessageSquare } from "lucide-react";
 import { Metadata } from "next";
 import Link from "next/link";
+import { ImageGrid } from "@/components/image-grid";
 
 type Props = {
   params: Promise<{ workspaceId: string }>;
@@ -103,7 +104,36 @@ export default async function Page({ params }: Props) {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full">
         {threads.length === 0 ? (
-          <></>
+          <div className="max-w-2xl mx-auto flex flex-col items-center justify-center py-20 px-6 text-center space-y-6 h-full select-none">
+            <div className="size-16 rounded-3xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
+              <MessageSquare className="size-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-700 dark:from-white dark:via-zinc-100 dark:to-zinc-300 bg-clip-text text-transparent">
+                No threads yet
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+                Threads you start or participate in will appear here. Hover over any message in a channel and click the reply icon to start a thread.
+              </p>
+            </div>
+            
+            <Link
+              href={`/workspaces/${workspaceId}`}
+              className="flex items-center gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:shadow-md group text-left max-w-xs w-full"
+            >
+              <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors duration-200 text-zinc-500 dark:text-zinc-400 shrink-0">
+                <ArrowRight className="size-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-850 dark:text-zinc-200 transition-colors duration-200">
+                  Go to Workspace
+                </h4>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                  Return to your channels to browse conversations
+                </p>
+              </div>
+            </Link>
+          </div>
         ) : (
           threads.map((thread) => {
             const repliesCount = thread.threadReplies.length;
@@ -155,9 +185,22 @@ export default async function Page({ params }: Props) {
                     <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
                       {thread.user.name}
                     </span>
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-2 mt-0.5 leading-relaxed">
-                      {thread.content}
-                    </p>
+                    {thread.content ? (
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-2 mt-0.5 leading-relaxed">
+                        {thread.content}
+                      </p>
+                    ) : thread.images.length > 0 ? (
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500 italic mt-1 flex items-center gap-1.5 font-medium">
+                        <ImageIcon className="size-3.5" />
+                        Sent {thread.images.length === 1 ? "an image" : `${thread.images.length} images`}
+                      </p>
+                    ) : null}
+
+                    {thread.images.length > 0 && (
+                      <div className="mt-2.5 max-w-xs">
+                        <ImageGrid images={thread.images} />
+                      </div>
+                    )}
                   </div>
                 </div>
 

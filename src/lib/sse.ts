@@ -1,4 +1,14 @@
-const subscribers = new Map<string, Set<ReadableStreamDefaultController>>();
+const globalForSSE = global as unknown as {
+  subscribers: Map<string, Set<ReadableStreamDefaultController>>;
+};
+
+const subscribers =
+  globalForSSE.subscribers ||
+  new Map<string, Set<ReadableStreamDefaultController>>();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForSSE.subscribers = subscribers;
+}
 
 export function addSubscriber(
   channelId: string,

@@ -14,6 +14,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
+import { usePresence } from "@/hooks/use-presence";
+
 type Member = {
   id: string;
   name: string;
@@ -34,22 +36,30 @@ const statusColor: Record<UserStatus, string> = {
 };
 
 export default function ChannelMemberPanel({ members, currentUserId }: Props) {
-  const online = members.filter((m) => m.status !== "offline");
-  const offline = members.filter((m) => m.status === "offline");
+  const { onlineUserIds, userStatuses } = usePresence();
+
+  const mappedMembers = members.map((m) => {
+    const isOnline = onlineUserIds.has(m.id);
+    const status = isOnline ? ((userStatuses.get(m.id) as UserStatus) ?? "online") : "offline";
+    return { ...m, status };
+  });
+
+  const online = mappedMembers.filter((m) => m.status !== "offline");
+  const offline = mappedMembers.filter((m) => m.status === "offline");
 
   return (
-    <aside className="w-56 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col overflow-y-auto overflow-x-hidden">
+    <aside className="w-56 shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-zinc-50/20 dark:bg-zinc-950/10 backdrop-blur-xs flex flex-col overflow-y-auto overflow-x-hidden">
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
-          Members - {members.length}
+        <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+          Members — {members.length}
         </p>
       </div>
 
-      <div className="flex flex-col gap-4 p-3">
+      <div className="flex flex-col gap-4 p-3 select-none">
         {online.length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide px-2 mb-1">
-              Online - {online.length}
+          <div className="space-y-0.5">
+            <p className="text-[9px] font-bold text-zinc-400/80 dark:text-zinc-500/80 uppercase tracking-widest px-2 mb-1.5">
+              Online — {online.length}
             </p>
             {online.map((member) => (
               <MemberRow
@@ -62,9 +72,9 @@ export default function ChannelMemberPanel({ members, currentUserId }: Props) {
         )}
 
         {offline.length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide px-2 mb-1">
-              Offline - {offline.length}
+          <div className="space-y-0.5">
+            <p className="text-[9px] font-bold text-zinc-400/80 dark:text-zinc-500/80 uppercase tracking-widest px-2 mb-1.5">
+              Offline — {offline.length}
             </p>
             {offline.map((member) => (
               <MemberRow
@@ -110,48 +120,52 @@ function MemberRow({ member, isCurrentUser }: MemberRowProps) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer group">
+        <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40 transition-all cursor-pointer group active:scale-[0.98]">
           <div className="relative shrink-0">
-            <Avatar className="size-7">
+            <Avatar className="size-7 border border-zinc-200/50 dark:border-zinc-800/50">
               <AvatarImage src={member.image ?? ""} />
-              <AvatarFallback className="text-[10px] font-semibold">
+              <AvatarFallback className="text-[9px] font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
                 {getInitials(member.name)}
               </AvatarFallback>
             </Avatar>
             <span
-              className={`absolute bottom-0 right-0 size-2 rounded-full border border-white dark:border-zinc-900 ${statusColor[member.status]} ${member.status === "online" ? "animate-status-pulse" : ""}`}
+              className={`absolute bottom-0 right-0 size-2 rounded-full border border-white dark:border-zinc-900 ${statusColor[member.status]} ${member.status === "online" ? "animate-pulse" : ""}`}
             />
           </div>
 
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 group-hover:text-zinc-900 dark:group-hover:text-zinc-50 truncate transition-colors flex items-center gap-1.5">
             {member.name}
             {isCurrentUser && (
-              <span className="text-zinc-400 font-normal">(you)</span>
+              <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50/80 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">you</span>
             )}
           </span>
         </div>
       </PopoverTrigger>
 
-      <PopoverContent side="left" className="w-56 p-0 overflow-hidden">
-        <div className="bg-zinc-100 dark:bg-zinc-800 px-4 pt-4 pb-6">
-          <Avatar className="size-14">
-            <AvatarImage src={member.image ?? ""} />
-            <AvatarFallback className="text-lg font-semibold">
-              {getInitials(member.name)}
-            </AvatarFallback>
-          </Avatar>
+      <PopoverContent side="left" className="w-56 p-0 overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl bg-white dark:bg-zinc-950 backdrop-blur-md">
+        <div className="relative">
+          <div className="h-16 w-full bg-gradient-to-r from-indigo-500/20 to-fuchsia-500/20 dark:from-indigo-600/20 dark:to-violet-600/20 border-b border-zinc-200/20 dark:border-zinc-850/20" />
+          
+          <div className="absolute -bottom-7 left-4">
+            <Avatar className="size-14 border-4 border-white dark:border-zinc-950 shadow-md">
+              <AvatarImage src={member.image ?? ""} />
+              <AvatarFallback className="text-lg font-bold bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300">
+                {getInitials(member.name)}
+              </AvatarFallback>
+            </Avatar>
+          </div>
         </div>
 
-        <div className="px-4 pt-3 pb-4 flex flex-col gap-4">
+        <div className="px-4 pt-9 pb-4 flex flex-col gap-4">
           <div>
-            <p className="font-semibold text-sm text-zinc-900 dark:text-zinc-50">
+            <p className="font-extrabold text-sm text-zinc-900 dark:text-zinc-50 tracking-tight truncate">
               {member.name}
             </p>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-1.5 bg-zinc-100/50 dark:bg-zinc-900/50 w-fit px-2 py-0.5 rounded-full border border-zinc-250/30 dark:border-zinc-800/20">
               <span
-                className={`size-1.5 rounded-full ${statusColor[member.status]}`}
+                className={`size-1.5 rounded-full ${statusColor[member.status]} ${member.status === "online" ? "animate-pulse" : ""}`}
               />
-              <span className="text-xs text-zinc-400 capitalize">
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 capitalize font-bold">
                 {member.status}
               </span>
             </div>
@@ -160,7 +174,7 @@ function MemberRow({ member, isCurrentUser }: MemberRowProps) {
           {!isCurrentUser && (
             <Button
               size="sm"
-              className="w-full text-xs gap-1.5 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0"
+              className="w-full text-xs gap-1.5 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0 font-bold rounded-lg"
               disabled={isPending}
               onClick={handleMessage}
             >

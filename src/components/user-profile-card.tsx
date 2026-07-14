@@ -60,33 +60,44 @@ export default function UserProfileCard({
   return (
     <Popover>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent side={side} className="w-56 p-0 overflow-hidden">
-        <div className="bg-zinc-100 dark:bg-zinc-800 px-4 pt-4 pb-6">
-          <Avatar className="size-14">
-            <AvatarImage src={image ?? ""} />
-            <AvatarFallback>{getInitials(name)}</AvatarFallback>
-          </Avatar>
+      <PopoverContent side={side} className="w-56 p-0 overflow-hidden rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-xl bg-white dark:bg-zinc-950 backdrop-blur-md">
+        <div className="relative">
+          <div className="h-16 w-full bg-gradient-to-r from-indigo-500/20 to-fuchsia-500/20 dark:from-indigo-600/20 dark:to-violet-600/20 border-b border-zinc-200/20 dark:border-zinc-850/20" />
+          
+          <div className="absolute -bottom-7 left-4">
+            <Avatar className="size-14 border-4 border-white dark:border-zinc-950 shadow-md">
+              <AvatarImage src={image ?? ""} />
+              <AvatarFallback className="text-lg font-bold bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300">
+                {getInitials(name)}
+              </AvatarFallback>
+            </Avatar>
+          </div>
         </div>
 
-        <div className="px-4 pt-3 pb-4 flex flex-col gap-4">
+        <div className="px-4 pt-9 pb-4 flex flex-col gap-4">
           <div>
-            <p className="font-semibold text-sm text-zinc-900 dark:text-zinc-50">
+            <p className="font-extrabold text-sm text-zinc-900 dark:text-zinc-50 tracking-tight truncate">
               {name}
             </p>
-            {username && <p className="text-xs text-zinc-400">@{username}</p>}
-            <div className="flex items-center gap-1.5 mt-1">
+            {username && (
+              <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 mt-0.5">
+                @{username}
+              </p>
+            )}
+            <div className="flex items-center gap-1.5 mt-1.5 bg-zinc-100/50 dark:bg-zinc-900/50 w-fit px-2 py-0.5 rounded-full border border-zinc-250/30 dark:border-zinc-800/20">
               <span
-                className={`size-1.5 rounded-full ${statusColor[displayStatus]}`}
+                className={`size-1.5 rounded-full ${statusColor[displayStatus]} ${displayStatus === "online" ? "animate-pulse" : ""}`}
               />
-              <span className="text-xs text-zinc-400 capitalize">
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 capitalize font-bold">
                 {displayStatus === "busy" ? "Do not disturb" : displayStatus}
               </span>
             </div>
           </div>
+
           {!isCurrentUser && (
             <Button
               size="sm"
-              className="w-full text-xs gap-1.5 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0"
+              className="w-full text-xs gap-1.5 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-none border-0 font-bold rounded-lg"
               disabled={isPending}
               onClick={handleMessage}
             >

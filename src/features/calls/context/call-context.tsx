@@ -306,7 +306,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const createPeerConnection = (isVideoCall: boolean) => {
+  const createPeerConnection = (_isVideoCall: boolean) => {
     if (pcRef.current) return pcRef.current;
 
     const pc = new RTCPeerConnection(rtcConfig);

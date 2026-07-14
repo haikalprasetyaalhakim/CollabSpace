@@ -55,21 +55,15 @@ export function userDisconnected(
   userId: string,
   controller: ReadableStreamDefaultController,
 ): void {
-  const count = onlineUsers.get(userId) ?? 1;
-  if (count <= 1) {
-    onlineUsers.delete(userId);
-    userStatuses.delete(userId);
-    activeVoiceChannels.delete(userId);
-    voiceParticipants.delete(userId);
-  } else {
-    onlineUsers.set(userId, count - 1);
-  }
-
   const userCtrls = presenceSubscribers.get(userId);
   if (userCtrls) {
     userCtrls.delete(controller);
     if (userCtrls.size === 0) {
       presenceSubscribers.delete(userId);
+      onlineUsers.delete(userId);
+      userStatuses.delete(userId);
+      activeVoiceChannels.delete(userId);
+      voiceParticipants.delete(userId);
     }
   }
 
@@ -139,15 +133,28 @@ function broadcastPresence(): void {
   });
 
   const encoded = new TextEncoder().encode(`data: ${payload}\n\n`);
-  presenceSubscribers.forEach((controllers) => {
-    controllers.forEach((controller) => {
+  const userIds = Array.from(presenceSubscribers.keys());
+
+  for (const userId of userIds) {
+    const controllers = presenceSubscribers.get(userId);
+    if (!controllers) continue;
+
+    for (const controller of Array.from(controllers)) {
       try {
         controller.enqueue(encoded);
       } catch (error) {
         controllers.delete(controller);
       }
-    });
-  });
+    }
+
+    if (controllers.size === 0) {
+      presenceSubscribers.delete(userId);
+      onlineUsers.delete(userId);
+      userStatuses.delete(userId);
+      activeVoiceChannels.delete(userId);
+      voiceParticipants.delete(userId);
+    }
+  }
 }
 
 export function sendTargetEvent(userId: string, data: unknown): void {
@@ -167,14 +174,26 @@ export function sendTargetEvent(userId: string, data: unknown): void {
 if (process.env.NODE_ENV !== "test") {
   const pingData = new TextEncoder().encode(": ping\n\n");
   setInterval(() => {
-    presenceSubscribers.forEach((controllers) => {
-      controllers.forEach((ctrl) => {
+    const userIds = Array.from(presenceSubscribers.keys());
+    for (const userId of userIds) {
+      const controllers = presenceSubscribers.get(userId);
+      if (!controllers) continue;
+
+      for (const ctrl of Array.from(controllers)) {
         try {
           ctrl.enqueue(pingData);
         } catch {
           controllers.delete(ctrl);
         }
-      });
-    });
+      }
+
+      if (controllers.size === 0) {
+        presenceSubscribers.delete(userId);
+        onlineUsers.delete(userId);
+        userStatuses.delete(userId);
+        activeVoiceChannels.delete(userId);
+        voiceParticipants.delete(userId);
+      }
+    }
   }, 20000);
 }

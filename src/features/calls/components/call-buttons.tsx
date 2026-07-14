@@ -13,7 +13,7 @@ type Props = {
 export default function CallButtons({
   otherUserId,
   otherUserName,
-  conversationId,
+  conversationId: _conversationId,
 }: Props) {
   const { startCall } = useCall();
 

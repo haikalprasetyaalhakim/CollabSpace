@@ -19,13 +19,16 @@ import {
 import { statusOptions } from "@/constants";
 import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/utils";
-import { Settings } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 export default function SidebarFooterSection() {
   const { state } = useSidebar();
   const { data: session } = authClient.useSession();
+  const params = useParams();
+  const workspaceId = params?.workspaceId as string | undefined;
 
   const isCollapsed = state === "collapsed";
 
@@ -97,6 +100,17 @@ export default function SidebarFooterSection() {
                     )}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={async () => {
+                    await authClient.signOut();
+                    window.location.href = "/sign-in";
+                  }}
+                  className="text-red-650 dark:text-red-400 focus:text-red-700 dark:focus:text-red-350 cursor-pointer flex items-center gap-2"
+                >
+                  <LogOut className="size-4" />
+                  <span className="text-sm">Log out</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -112,7 +126,7 @@ export default function SidebarFooterSection() {
                 </div>
 
                 <Link
-                  href="/settings"
+                  href={workspaceId ? `/settings?workspaceId=${workspaceId}` : "/settings"}
                   className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-zinc-800/80 dark:text-zinc-400 dark:hover:bg-zinc-700/80 dark:hover:text-zinc-50"
                   title="Settings"
                 >

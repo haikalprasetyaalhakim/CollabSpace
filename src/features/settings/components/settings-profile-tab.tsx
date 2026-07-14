@@ -49,6 +49,9 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
     if (!result.success) {
       setImage(previousImage);
       toast.error(result.error);
+    } else {
+      refetch();
+      toast.success("Profile photo updated!");
     }
   };
 
@@ -71,7 +74,7 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
   };
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-6">
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-6 sm:p-8 backdrop-blur-xs flex flex-col shadow-xs">
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           Profile Information
@@ -81,25 +84,25 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
         </p>
       </div>
 
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6 p-4 rounded-lg bg-zinc-50/50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800/40">
         <AvatarUpload
           currentImage={image}
           fallback={getInitials(name)}
           onUploadComplete={handleAvatarUpload}
         />
         <div className="flex flex-col gap-0.5">
-          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
             Profile photo
           </p>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
             PNG, JPG, or WebP. Max 4MB
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
             Display Name
           </label>
           <Input
@@ -109,25 +112,25 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
             onChange={(e) =>
               setForm((prevState) => ({ ...prevState, name: e.target.value }))
             }
-            className="rounded-md border-zinc-300 w-full h-9 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 outline-none focus:border-zinc-900 dark:focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-zinc-400/10 transition-all"
+            className="h-9 px-3 text-sm rounded-lg border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-550 outline-none focus:border-indigo-500/50 dark:focus:border-indigo-400/50 focus:ring-4 focus:ring-indigo-500/10 dark:focus:ring-indigo-400/5 transition-all"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-            Email
+          <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+            Email Address
           </label>
           <Input
             type="email"
             defaultValue={userData.email}
             readOnly
-            className="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-500 cursor-not-allowed border-zinc-200 dark:border-zinc-800"
+            className="h-9 px-3 text-sm rounded-lg bg-zinc-50 dark:bg-zinc-800/30 text-zinc-400 dark:text-zinc-500 cursor-not-allowed border border-zinc-200 dark:border-zinc-800/60"
           />
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="flex flex-col gap-1.5 mb-2">
+        <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
           Status
         </label>
         <Select
@@ -136,9 +139,9 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
             setForm((prevState) => ({ ...prevState, status: value }))
           }
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full h-9 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 focus:ring-4 focus:ring-indigo-500/10 dark:focus:ring-indigo-400/5">
             <SelectValue>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-50">
                 <span
                   className={`size-2 rounded-full ${statusOptions.find((s) => s.value === status)?.color}`}
                 />
@@ -148,10 +151,10 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
               </div>
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-md">
             <SelectGroup>
               {statusOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
+                <SelectItem key={opt.value} value={opt.value} className="text-xs">
                   <div className="flex items-center gap-2">
                     <span className={`${opt.color} size-2 rounded-full`} />
                     <span>{opt.label}</span>
@@ -163,9 +166,9 @@ export default function SettingsProfileTab({ userData }: { userData: User }) {
         </Select>
       </div>
 
-      <div className="flex justify-end mt-6">
+      <div className="flex justify-end mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800/80">
         <Button
-          className="bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 border-0 shadow-none text-sm font-medium transition-colors"
+          className="bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-indigo-600 dark:disabled:hover:bg-indigo-500 transition-all shadow-sm shadow-indigo-500/10 px-4 py-2 text-xs font-semibold rounded-lg cursor-pointer"
           onClick={handleButtonClick}
           disabled={isPending || !hasChanges}
         >

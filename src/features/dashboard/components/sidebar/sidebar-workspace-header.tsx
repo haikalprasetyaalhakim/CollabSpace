@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,12 +68,13 @@ export default function SidebarWorkspaceHeader({
         <div className="flex items-center justify-between">
           {isCollapsed ? (
             <div className="flex justify-center w-full py-1">
-              <div className="size-7 rounded-md overflow-hidden bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900 flex items-center justify-center shrink-0">
+              <div className="relative size-7 rounded-md overflow-hidden bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900 flex items-center justify-center shrink-0">
                 {activeWorkspace?.image ? (
-                  <img
+                  <Image
                     src={activeWorkspace.image}
                     alt={workspaceName}
-                    className="size-full object-cover"
+                    fill
+                    className="object-cover"
                   />
                 ) : (
                   <span className="font-bold text-xs">
@@ -97,12 +99,13 @@ export default function SidebarWorkspaceHeader({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="w-full text-left p-2.5 bg-black/45 hover:bg-black/60 backdrop-blur-md text-white transition-all flex items-center gap-2 outline-none border-t border-white/10">
-                    <div className="size-7 rounded-md overflow-hidden bg-white/25 flex items-center justify-center shrink-0 border border-white/10">
+                    <div className="relative size-7 rounded-md overflow-hidden bg-white/25 flex items-center justify-center shrink-0 border border-white/10">
                       {activeWorkspace?.image ? (
-                        <img
+                        <Image
                           src={activeWorkspace.image}
                           alt={workspaceName}
-                          className="size-full object-cover"
+                          fill
+                          className="object-cover"
                         />
                       ) : (
                         <span className="font-bold text-xs text-white">

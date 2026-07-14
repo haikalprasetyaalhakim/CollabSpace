@@ -1,4 +1,5 @@
 import GlobalSearch from "@/components/global-search";
+import Image from "next/image";
 import PushNotificationManager from "@/components/push-notification-manager";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CallProvider } from "@/features/calls/context/call-context";
@@ -14,7 +15,7 @@ import { UnreadProvider } from "@/hooks/use-unread";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { cn, getInitials } from "@/lib/utils";
-import { Compass, Plus, Sparkles } from "lucide-react";
+import { Compass, Plus } from "lucide-react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -105,15 +106,7 @@ export default async function Layout({
           >
             <SearchProvider>
               <div className="flex h-screen w-screen overflow-hidden">
-                <aside className="w-[72px] h-full bg-zinc-950 flex flex-col items-center py-4 gap-4 shrink-0 border-r border-zinc-900">
-                  <Link
-                    href="/dashboard"
-                    className="flex items-center justify-center size-12 rounded-[20px] hover:rounded-[12px] bg-zinc-900 text-white transition-all"
-                  >
-                    <Sparkles className="size-5 text-zinc-400" />
-                  </Link>
-                  <div className="w-8 h-px bg-zinc-800" />
-
+                <aside className="w-[72px] h-full bg-zinc-950 flex flex-col items-center py-4 gap-3 shrink-0 border-r border-zinc-900">
                   <div className="flex-1 w-full flex flex-col items-center gap-3 overflow-y-auto no-scrollbar">
                     {userWorkspaces.map((w) => {
                       const isActive = w.id === workspaceId;
@@ -123,17 +116,18 @@ export default async function Layout({
                           key={w.id}
                           href={`/workspaces/${w.id}`}
                           className={cn(
-                            `flex items-center justify-center size-12 rounded-[20px] hover:rounded-[12px] transition-all overflow-hidden font-semibold text-sm`,
+                            `flex items-center justify-center relative size-12 rounded-[20px] hover:rounded-[12px] transition-all overflow-hidden font-semibold text-sm`,
                             isActive
                               ? "rounded-[12px] bg-white text-zinc-950"
                               : "bg-zinc-900 text-zinc-400 hover:bg-white hover:text-zinc-950",
                           )}
                         >
                           {w.image ? (
-                            <img
+                            <Image
                               src={w.image}
                               alt={w.name}
-                              className="size-full object-cover"
+                              fill
+                              className="object-cover"
                             />
                           ) : (
                             getInitials(w.name)

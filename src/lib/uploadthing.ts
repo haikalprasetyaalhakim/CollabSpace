@@ -26,7 +26,7 @@ export const ourFileRouter = {
     }),
   messageImageUploader: f({
     blob: {
-      maxFileSize: "16MB",
+      maxFileSize: "128MB",
       maxFileCount: 4,
     },
   })

@@ -16,6 +16,7 @@ const SendMessageSchema = z
     clientId: z.string().optional(),
     replyToId: z.string().optional(),
     threadParentId: z.string().optional(),
+    createdAt: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { channelId, content, images } = parsed.data;
+  const { channelId, content, images, clientId, createdAt } = parsed.data;
 
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
@@ -66,12 +67,14 @@ export async function POST(request: NextRequest) {
 
   const message = await prisma.message.create({
     data: {
+      id: clientId || undefined,
       channelId,
       content: content?.trim() ?? null,
       userId: session.user.id,
       images: images ?? [],
       replyToId: parsed.data.replyToId ?? null,
       threadParentId: parsed.data.threadParentId ?? null,
+      createdAt: createdAt ? new Date(createdAt) : undefined,
     },
     include: {
       user: { select: { id: true, name: true, image: true, username: true } },

@@ -18,16 +18,7 @@ import { getInitials } from "@/lib/utils";
 import { Hash, MicOff, Plus, Video, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-
-type VoiceParticipant = {
-  id: string;
-  name: string;
-  image: string | null;
-  isMuted: boolean;
-  isCameraOff: boolean;
-  isSpeaking: boolean;
-};
+import { useState } from "react";
 
 type Channel = { id: string; name: string; type: ChannelType };
 
@@ -45,69 +36,7 @@ export default function SidebarChannels({ channels }: { channels: Channel[] }) {
   const textChannels = channels.filter((c) => c.type === "TEXT");
   const voiceChannels = channels.filter((c) => c.type === "VOICE");
 
-  const firstVoiceChannelId = voiceChannels[0]?.id ?? "mock-channel-id";
 
-  const [activeVoiceUsers, setActiveVoiceUsers] = useState<
-    Record<string, VoiceParticipant[]>
-  >({
-    [firstVoiceChannelId]: [
-      {
-        id: "mock-user-1",
-        name: "Ahmad",
-        image: null,
-        isMuted: true,
-        isCameraOff: true,
-        isSpeaking: false,
-      },
-    ],
-  });
-
-  useEffect(() => {
-    const handleVoiceState = (e: Event) => {
-      const { channelId, isConnected, isMuted, isCameraOff, isSpeaking, user } =
-        (e as CustomEvent).detail;
-
-      setActiveVoiceUsers((prev) => {
-        const withoutMe = (prev[channelId] ?? []).filter(
-          (u) => u.id !== (user.id as string),
-        );
-
-        if (!isConnected) {
-          return {
-            ...prev,
-            [channelId]: withoutMe,
-          };
-        }
-
-        return {
-          ...prev,
-          [channelId]: [
-            ...withoutMe,
-            {
-              id: user.id,
-              name: user.name,
-              image: user.image,
-              isMuted,
-              isCameraOff,
-              isSpeaking,
-            },
-          ],
-        };
-      });
-    };
-
-    window.addEventListener(
-      "voice-state-change",
-      handleVoiceState as EventListener,
-    );
-
-    return () => {
-      window.removeEventListener(
-        "voice-state-change",
-        handleVoiceState as EventListener,
-      );
-    };
-  }, []);
 
   return (
     <>

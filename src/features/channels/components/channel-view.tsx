@@ -37,10 +37,12 @@ import { PendingImage } from "@/types/message";
 import {
   ArrowUpRight,
   Bell,
+  ChevronUp,
   FileUp,
   Film,
   Hash,
   ImageIcon,
+  Loader2,
   MessageSquare,
   Pencil,
   Pin,
@@ -64,6 +66,7 @@ import InviteMemberDialog from "@/components/invite-members-dialog";
 import PersonalizeChannelDialog from "./personalize-channel-dialog";
 import ChannelMemberPanel from "./channel-member-panel";
 import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { LeaveChannelButton } from "./channel-settings-button";
 import { useSearch } from "@/hooks/use-search";
 import {
@@ -110,6 +113,7 @@ function MessageItem({
   isCompact = false,
   onThreadReply,
   repliesCount = 0,
+  isSending = false,
 }: {
   message: MessageWithUser;
   currentUserId: string;
@@ -122,6 +126,7 @@ function MessageItem({
   isCompact?: boolean;
   onThreadReply?: (message: MessageWithUser) => void;
   repliesCount?: number;
+  isSending?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -136,7 +141,7 @@ function MessageItem({
   return (
     <div
       id={`message-${message.id}`}
-      className={`relative flex flex-col px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/40 hover:bg-zinc-50/70 ${
+      className={`relative flex flex-col px-4 rounded-lg transition-colors group dark:hover:bg-zinc-800/40 hover:bg-zinc-50/70 ${isSending ? "opacity-60 select-none pointer-events-none" : ""} ${
         isCompact
           ? "py-0.5"
           : message.replyTo
@@ -217,209 +222,213 @@ function MessageItem({
           )}
 
           {isEditing ? (
-          <div className="flex flex-col gap-2 mt-1">
-            <textarea
-              ref={editRef}
-              defaultValue={message.content ?? ""}
-              rows={1}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setIsEditing(false);
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  const content = editRef.current?.value.trim();
-                  if (content) {
-                    onEdit(message.id, content);
-                    setIsEditing(false);
-                  }
-                }
-              }}
-              className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md px-3 py-2 resize-none outline-none w-full focus:ring-2 focus:ring-zinc-400/50 dark:focus:ring-zinc-500/50 transition-shadow"
-              style={{ fieldSizing: "content" }}
-            />
-            <div className="flex items-center gap-2">
-              <button
-                className="text-xs font-medium px-3 py-1 rounded-md bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
-                onClick={() => {
-                  const content = editRef.current?.value.trim();
-                  if (content) {
-                    onEdit(message.id, content);
-                    setIsEditing(false);
+            <div className="flex flex-col gap-2 mt-1">
+              <textarea
+                ref={editRef}
+                defaultValue={message.content ?? ""}
+                rows={1}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setIsEditing(false);
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    const content = editRef.current?.value.trim();
+                    if (content) {
+                      onEdit(message.id, content);
+                      setIsEditing(false);
+                    }
                   }
                 }}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="text-xs font-medium px-3 py-1 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-            <span className="text-[11px] text-zinc-400">
-              Press Enter to save · Esc to cancel
-            </span>
-          </div>
-        ) : (
-          message.content && (
-            <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
-              {renderContent(message.content)}
-            </p>
-          )
-        )}
-
-        {message.images.length > 0 &&
-          (() => {
-            const getAttachmentMeta = (url: string) => {
-              try {
-                const urlObj = new URL(url);
-                const name = urlObj.searchParams.get("name");
-                if (name) {
-                  const isImg = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(
-                    name.toLowerCase(),
-                  );
-                  const isVid = /\.(mp4|webm|mov|ogg)$/i.test(
-                    name.toLowerCase(),
-                  );
-                  return { name, isImg, isVid, downloadUrl: url };
-                }
-              } catch (e) {}
-              return {
-                name: "Image",
-                isImg: true,
-                isVid: false,
-                downloadUrl: url,
-              };
-            };
-
-            const parsedAttachments = message.images.map(getAttachmentMeta);
-            const images = parsedAttachments
-              .filter((a) => a.isImg)
-              .map((a) => a.downloadUrl);
-            const videos = parsedAttachments.filter((a) => a.isVid);
-            const files = parsedAttachments.filter((a) => !a.isImg && !a.isVid);
-
-            return (
-              <div className="flex flex-col gap-2 mt-1">
-                {images.length > 0 && <ImageGrid images={images} />}
-
-                {videos.length > 0 && (
-                  <div className="flex flex-col gap-2 mt-1">
-                    {videos.map((vid) => (
-                      <div
-                        key={vid.downloadUrl}
-                        className="relative max-w-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-850 bg-black/10 dark:bg-black/40 shadow-sm"
-                      >
-                        <video
-                          src={vid.downloadUrl}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          className="max-w-full max-h-[300px] w-auto h-auto block object-contain mx-auto"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {files.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    {files.map((file) => (
-                      <div
-                        key={file.downloadUrl}
-                        className="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 max-w-sm group/file hover:bg-zinc-100/40 dark:hover:bg-zinc-900/50 transition-all duration-200"
-                      >
-                        <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-550 dark:text-zinc-400 shrink-0">
-                          <FileUp className="size-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate"
-                            title={file.name}
-                          >
-                            {file.name}
-                          </p>
-                          <a
-                            href={file.downloadUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download={file.name}
-                            className="text-[10px] text-blue-500 hover:underline mt-0.5 block font-medium"
-                          >
-                            Download File
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-        {message.messageReactions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {Object.entries(
-              message.messageReactions.reduce(
-                (acc, r) => {
-                  if (!acc[r.emoji])
-                    acc[r.emoji] = { count: 0, hasReacted: false, users: [] };
-                  acc[r.emoji].count++;
-                  if (r.userId === currentUserId)
-                    acc[r.emoji].hasReacted = true;
-                  acc[r.emoji].users.push(r.user.name);
-                  return acc;
-                },
-                {} as Record<
-                  string,
-                  { count: number; hasReacted: boolean; users: string[] }
-                >,
-              ),
-            ).map(([emoji, { count, hasReacted, users }]) => (
-              <Tooltip key={emoji}>
-                <TooltipTrigger asChild>
-                  <button
-                    key={emoji}
-                    onClick={() => onReaction(message.id, emoji)}
-                    className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                      hasReacted
-                        ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
-                        : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                    }`}
-                  >
-                    <span>{emoji}</span>
-                    <span className="text-zinc-600 dark:text-zinc-400">
-                      {count}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="text-xs max-w-[200px] text-center"
+                className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md px-3 py-2 resize-none outline-none w-full focus:ring-2 focus:ring-zinc-400/50 dark:focus:ring-zinc-500/50 transition-shadow"
+                style={{ fieldSizing: "content" }}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-xs font-medium px-3 py-1 rounded-md bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
+                  onClick={() => {
+                    const content = editRef.current?.value.trim();
+                    if (content) {
+                      onEdit(message.id, content);
+                      setIsEditing(false);
+                    }
+                  }}
                 >
-                  {users.length < 3
-                    ? users.join(", ")
-                    : `${users.slice(0, 2).join(", ")} and ${users.length - 2} other${users.length - 2 > 1 ? "s" : ""}`}
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        )}
+                  Save
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="text-xs font-medium px-3 py-1 rounded-md text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              <span className="text-[11px] text-zinc-400">
+                Press Enter to save · Esc to cancel
+              </span>
+            </div>
+          ) : (
+            message.content && (
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all leading-relaxed">
+                {renderContent(message.content)}
+              </p>
+            )
+          )}
 
-        {repliesCount > 0 && (
-          <button
-            onClick={() => onThreadReply?.(message)}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors text-xs text-indigo-600 dark:text-indigo-400 font-semibold w-fit mt-2 cursor-pointer"
-          >
-            <MessageSquare className="size-3.5" />
-            <span>{repliesCount} {repliesCount === 1 ? "reply" : "replies"}</span>
-          </button>
-        )}
+          {message.images.length > 0 &&
+            (() => {
+              const getAttachmentMeta = (url: string) => {
+                try {
+                  const urlObj = new URL(url);
+                  const name = urlObj.searchParams.get("name");
+                  if (name) {
+                    const isImg = /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(
+                      name.toLowerCase(),
+                    );
+                    const isVid = /\.(mp4|webm|mov|ogg)$/i.test(
+                      name.toLowerCase(),
+                    );
+                    return { name, isImg, isVid, downloadUrl: url };
+                  }
+                } catch (e) {}
+                return {
+                  name: "Image",
+                  isImg: true,
+                  isVid: false,
+                  downloadUrl: url,
+                };
+              };
+
+              const parsedAttachments = message.images.map(getAttachmentMeta);
+              const images = parsedAttachments
+                .filter((a) => a.isImg)
+                .map((a) => a.downloadUrl);
+              const videos = parsedAttachments.filter((a) => a.isVid);
+              const files = parsedAttachments.filter(
+                (a) => !a.isImg && !a.isVid,
+              );
+
+              return (
+                <div className="flex flex-col gap-2 mt-1">
+                  {images.length > 0 && <ImageGrid images={images} />}
+
+                  {videos.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {videos.map((vid) => (
+                        <div
+                          key={vid.downloadUrl}
+                          className="relative max-w-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-850 bg-black/10 dark:bg-black/40 shadow-sm"
+                        >
+                          <video
+                            src={vid.downloadUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="max-w-full max-h-[300px] w-auto h-auto block object-contain mx-auto"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {files.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {files.map((file) => (
+                        <div
+                          key={file.downloadUrl}
+                          className="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 max-w-sm group/file hover:bg-zinc-100/40 dark:hover:bg-zinc-900/50 transition-all duration-200"
+                        >
+                          <div className="size-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-550 dark:text-zinc-400 shrink-0">
+                            <FileUp className="size-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate"
+                              title={file.name}
+                            >
+                              {file.name}
+                            </p>
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={file.name}
+                              className="text-[10px] text-blue-500 hover:underline mt-0.5 block font-medium"
+                            >
+                              Download File
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {message.messageReactions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {Object.entries(
+                message.messageReactions.reduce(
+                  (acc, r) => {
+                    if (!acc[r.emoji])
+                      acc[r.emoji] = { count: 0, hasReacted: false, users: [] };
+                    acc[r.emoji].count++;
+                    if (r.userId === currentUserId)
+                      acc[r.emoji].hasReacted = true;
+                    acc[r.emoji].users.push(r.user.name);
+                    return acc;
+                  },
+                  {} as Record<
+                    string,
+                    { count: number; hasReacted: boolean; users: string[] }
+                  >,
+                ),
+              ).map(([emoji, { count, hasReacted, users }]) => (
+                <Tooltip key={emoji}>
+                  <TooltipTrigger asChild>
+                    <button
+                      key={emoji}
+                      onClick={() => onReaction(message.id, emoji)}
+                      className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                        hasReacted
+                          ? "bg-zinc-100 dark:bg-zinc-800 border-zinc-400 dark:border-zinc-500 font-medium"
+                          : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      <span>{emoji}</span>
+                      <span className="text-zinc-600 dark:text-zinc-400">
+                        {count}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    className="text-xs max-w-[200px] text-center"
+                  >
+                    {users.length < 3
+                      ? users.join(", ")
+                      : `${users.slice(0, 2).join(", ")} and ${users.length - 2} other${users.length - 2 > 1 ? "s" : ""}`}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          )}
+
+          {repliesCount > 0 && (
+            <button
+              onClick={() => onThreadReply?.(message)}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors text-xs text-indigo-600 dark:text-indigo-400 font-semibold w-fit mt-2 cursor-pointer"
+            >
+              <MessageSquare className="size-3.5" />
+              <span>
+                {repliesCount} {repliesCount === 1 ? "reply" : "replies"}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
-      {!isEditing && (
+      {!isEditing && !isSending && (
         <div className="absolute right-4 -top-3 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 ease-out flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-md z-10">
           <div className="relative">
             <button
@@ -674,6 +683,10 @@ export function ChannelView({
   const [attachOpen, setAttachOpen] = useState(false);
   const [pinnedWidth, setPinnedWidth] = useState(288);
 
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [threadCursor, setThreadCursor] = useState<string | null>(null);
+  const [threadLoadingMore, setThreadLoadingMore] = useState(false);
   const { data: session } = authClient.useSession();
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -682,6 +695,7 @@ export function ChannelView({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(!highlightMessageId);
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   const { markChannelRead, clearChannelMentions } = useUnread();
 
@@ -711,28 +725,58 @@ export function ChannelView({
   useEffect(() => {
     if (!activeThreadParentId) return;
 
+    setThreadLoading(true);
+    setThreadCursor(null);
+
     (async () => {
       try {
         const res = await fetch(
           `/api/messages/${activeThreadParentId}/replies`,
         );
-        const data = (await res.json()) as MessageWithUser[];
         if (!res.ok) {
           toast.error("Failed to load thread replies");
           return;
         }
+        const json = await res.json();
+        const data = json.replies as MessageWithUser[];
+        setThreadCursor(json.nextCursor);
         setMessages((prev) => {
           const otherMessages = prev.filter(
             (pm) => !data.some((dm) => dm.id === pm.id),
           );
-
           return [...otherMessages, ...data];
         });
       } catch (error) {
         toast.error("Network Error");
+      } finally {
+        setThreadLoading(false);
       }
     })();
   }, [activeThreadParentId]);
+
+  const handleLoadMoreReplies = useCallback(async () => {
+    if (!activeThreadParentId || !threadCursor || threadLoadingMore) return;
+    setThreadLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/messages/${activeThreadParentId}/replies?cursor=${encodeURIComponent(threadCursor)}`,
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      const data = json.replies as MessageWithUser[];
+      setThreadCursor(json.nextCursor);
+      setMessages((prev) => {
+        const otherMessages = prev.filter(
+          (pm) => !data.some((dm) => dm.id === pm.id),
+        );
+        return [...otherMessages, ...data];
+      });
+    } catch {
+      toast.error("Failed to load more replies");
+    } finally {
+      setThreadLoadingMore(false);
+    }
+  }, [activeThreadParentId, threadCursor, threadLoadingMore]);
 
   useEffect(() => {
     revokeAllRef.current = () => {
@@ -767,7 +811,8 @@ export function ChannelView({
     },
     onUploadError: (err) => {
       setIsUploadingImages(false);
-      toast.error(`Image upload failed: ${err.message}`);
+      setPendingImages((prev) => prev.filter((img) => img.remoteUrl !== null));
+      toast.error(`Upload failed: ${err.message}`);
     },
   });
 
@@ -859,13 +904,45 @@ export function ChannelView({
 
   const handleNewMessage = useCallback(
     (message: MessageWithUser, clientId?: string) => {
+      if (clientId && deletedIdsRef.current.has(clientId)) {
+        deletedIdsRef.current.add(message.id);
+        return;
+      }
+      if (deletedIdsRef.current.has(message.id)) {
+        return;
+      }
+      if (clientId) {
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(clientId);
+          return next;
+        });
+      }
       setMessages((prev) => {
-        if (clientId && prev.some((m) => m.id === clientId)) {
+        const hasTemp = clientId && prev.some((m) => m.id === clientId);
+        const hasReal = prev.some((m) => m.id === message.id);
+
+        if (hasTemp) {
           return prev.map((m) => (m.id === clientId ? message : m));
         }
 
-        if (prev.some((m) => m.id === message.id)) return prev;
-        return [...prev, message];
+        if (hasReal) return prev;
+
+        const updatedMessages = [...prev, message];
+        if (message.threadParentId) {
+          return updatedMessages.map((m) =>
+            m.id === message.threadParentId
+              ? {
+                  ...m,
+                  _count: {
+                    ...m._count,
+                    threadReplies: (m._count.threadReplies ?? 0) + 1,
+                  },
+                }
+              : m
+          );
+        }
+        return updatedMessages;
       });
       markChannelRead(channelId);
     },
@@ -879,7 +956,32 @@ export function ChannelView({
   }, []);
 
   const handleMessageDeleted = useCallback((messageId: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    setMessages((prev) => {
+      const messageToDelete = prev.find((m) => m.id === messageId);
+      const filtered = prev.filter((m) => m.id !== messageId);
+
+      if (messageToDelete?.threadParentId) {
+        const parentId = messageToDelete.threadParentId;
+        return filtered.map((m) =>
+          m.id === parentId
+            ? {
+                ...m,
+                _count: {
+                  ...m._count,
+                  threadReplies: Math.max(0, (m._count.threadReplies ?? 0) - 1),
+                },
+              }
+            : m
+        );
+      }
+      return filtered;
+    });
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(messageId);
+      return next;
+    });
+    setPinnedMessages((prev) => prev.filter((m) => m.id !== messageId));
   }, []);
 
   const handleReactionUpdated = useCallback(
@@ -915,6 +1017,11 @@ export function ChannelView({
     [],
   );
 
+  const handleChannelDeleted = useCallback(() => {
+    toast.error("This channel has been deleted by the owner");
+    router.push("/dashboard");
+  }, [router]);
+
   const handleTogglePin = useCallback(async (messageId: string) => {
     setPinnedIds((prev) => {
       const next = new Set(prev);
@@ -934,6 +1041,8 @@ export function ChannelView({
     handleMessageDeleted,
     handleReactionUpdated,
     handlePinUpdated,
+    undefined,
+    handleChannelDeleted,
   );
 
   useEffect(() => {
@@ -942,13 +1051,15 @@ export function ChannelView({
 
   const handleSend = async () => {
     const allUploaded = pendingImages.every((img) => img.remoteUrl !== null);
-    if (
-      (!input.trim() && pendingImages.length === 0) ||
-      !allUploaded
-    )
-      return;
+    if ((!input.trim() && pendingImages.length === 0) || !allUploaded) return;
 
     const tempId = crypto.randomUUID();
+    const createdAt = new Date();
+    setSendingIds((prev) => {
+      const next = new Set(prev);
+      next.add(tempId);
+      return next;
+    });
 
     setMessages((prev) => [
       ...prev,
@@ -970,7 +1081,7 @@ export function ChannelView({
           image: session?.user.image ?? null,
           username: session?.user.username ?? null,
         },
-        createdAt: new Date(),
+        createdAt,
         userId: session?.user.id!,
       },
     ]);
@@ -991,30 +1102,45 @@ export function ChannelView({
               : undefined,
           clientId: tempId,
           replyToId: replyingTo?.id,
+          createdAt: createdAt.toISOString(),
         }),
       });
 
       if (!response.ok) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(tempId);
+          return next;
+        });
         const error = await response.json();
         toast.error(error.error ?? "Failed to send message");
       } else {
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(tempId);
+          return next;
+        });
         pendingImages.forEach((img) => URL.revokeObjectURL(img.localUrl));
         setPendingImages([]);
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setSendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(tempId);
+        return next;
+      });
       toast.error("Network error.");
     }
   };
 
   const handleSendThreadReply = async (content: string) => {
     if (!content.trim() || !activeThreadParentId) return;
-
-    const tempId = crypto.randomUUID();
-    setMessages((prev) => [
-      ...prev,
-      {
+    const tempId = crypto.randomUUID();
+    const createdAt = new Date();
+    setMessages((prev) => {
+      const newMsg = {
         id: tempId,
         content: content.trim(),
         images: [],
@@ -1032,10 +1158,21 @@ export function ChannelView({
           image: session?.user.image ?? null,
           username: session?.user.username ?? null,
         },
-        createdAt: new Date(),
+        createdAt,
         userId: session?.user.id!,
-      },
-    ]);
+      };
+      return [...prev, newMsg].map((m) =>
+        m.id === activeThreadParentId
+          ? {
+              ...m,
+              _count: {
+                ...m._count,
+                threadReplies: (m._count.threadReplies ?? 0) + 1,
+              },
+            }
+          : m
+      );
+    });
 
     try {
       const response = await fetch("/api/messages", {
@@ -1046,29 +1183,43 @@ export function ChannelView({
           content: content.trim(),
           clientId: tempId,
           threadParentId: activeThreadParentId,
+          createdAt: createdAt.toISOString(),
         }),
       });
       if (!response.ok) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        const error = await response.json();
-        toast.error(error.error ?? "Failed to send reply");
-      } else {
-        setMessages((prev) =>
-          prev.map((m) =>
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempId);
+          return filtered.map((m) =>
             m.id === activeThreadParentId
               ? {
                   ...m,
                   _count: {
-                    threadReplies: (m._count.threadReplies ?? 0) + 1,
+                    ...m._count,
+                    threadReplies: Math.max(0, (m._count.threadReplies ?? 0) - 1),
                   },
                 }
-              : m,
-          ),
-        );
+              : m
+          );
+        });
+        const error = await response.json();
+        toast.error(error.error ?? "Failed to send reply");
       }
     } catch (error) {
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.error("Network error.");
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempId);
+        return filtered.map((m) =>
+          m.id === activeThreadParentId
+            ? {
+                ...m,
+                _count: {
+                  ...m._count,
+                  threadReplies: Math.max(0, (m._count.threadReplies ?? 0) - 1),
+                },
+              }
+            : m
+        );
+      });
+      toast.error("Network error");
     }
   };
 
@@ -1129,7 +1280,38 @@ export function ChannelView({
   }, []);
 
   const handleDeleteMessage = useCallback(async (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
+    deletedIdsRef.current.add(id);
+    setMessages((prev) => {
+      const messageToDelete = prev.find((m) => m.id === id);
+      const filtered = prev.filter((m) => m.id !== id);
+
+      if (messageToDelete?.threadParentId) {
+        const parentId = messageToDelete.threadParentId;
+        return filtered.map((m) =>
+          m.id === parentId
+            ? {
+                ...m,
+                _count: {
+                  ...m._count,
+                  threadReplies: Math.max(0, (m._count.threadReplies ?? 0) - 1),
+                },
+              }
+            : m
+        );
+      }
+      return filtered;
+    });
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setPinnedMessages((prev) => prev.filter((m) => m.id !== id));
+    setSendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
     try {
       const res = await fetch(`/api/messages/${id}`, {
@@ -1218,19 +1400,18 @@ export function ChannelView({
     <div className="flex flex-col flex-1 min-h-0 w-full overflow-hidden">
       {/* Discord-style Header */}
       <header className="flex items-center gap-3 px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md shrink-0">
-        <Separator orientation="vertical" className="h-4" />
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <Hash className="size-4 text-zinc-500" />
-            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50 truncate">
+            <span className="text-sm font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 truncate">
               {channelName}
             </span>
-            <span className="text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
+            <span className="text-[10px] font-bold bg-indigo-500/10 dark:bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 border border-indigo-250/20 px-1.5 py-0.5 rounded-full shrink-0">
               {memberCount} member{memberCount > 1 ? "s" : ""}
             </span>
           </div>
           {channelDescription && (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 max-w-[400px]">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 w-full max-w-[200px] xs:max-w-[300px] sm:max-w-[450px] md:max-w-[600px] lg:max-w-[800px]">
               {channelDescription}
             </p>
           )}
@@ -1285,15 +1466,17 @@ export function ChannelView({
             <Search className="size-3.5 text-zinc-400" />
           </button>
 
-          <Separator orientation="vertical" className="h-4 mx-1" />
-
-          {/* Leave/Settings channel button */}
-          <LeaveChannelButton
-            channelId={channelId}
-            channelName={channelName}
-            isOwner={session?.user.id === ownerId || !ownerId}
-            channelDescription={channelDescription}
-          />
+          {(session?.user.id === ownerId || !ownerId) && (
+            <>
+              <Separator orientation="vertical" className="h-4 mx-1" />
+              <LeaveChannelButton
+                channelId={channelId}
+                channelName={channelName}
+                isOwner={true}
+                channelDescription={channelDescription}
+              />
+            </>
+          )}
         </div>
       </header>
 
@@ -1342,9 +1525,9 @@ export function ChannelView({
                   </div>
                 )}
                 {(() => {
-                  const mainMessages = messages.filter(
-                    (msg) => msg.threadParentId === null,
-                  );
+                  const mainMessages = messages
+                    .filter((msg) => msg.threadParentId === null)
+                    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                   return mainMessages.map((msg, index) => {
                     const prev = mainMessages[index - 1];
 
@@ -1390,6 +1573,7 @@ export function ChannelView({
                           isCompact={isCompact}
                           onThreadReply={(m) => setActiveThreadParentId(m.id)}
                           repliesCount={msg._count?.threadReplies ?? 0}
+                          isSending={sendingIds.has(msg.id)}
                         />
                       </React.Fragment>
                     );
@@ -1519,7 +1703,7 @@ export function ChannelView({
                 ))}
               </div>
             )}
-            <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
+            <div className="flex items-end gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 px-3 py-2.5 focus-within:border-indigo-500/50 dark:focus-within:border-indigo-400/50 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:focus-within:ring-indigo-400/5 transition-all shadow-xs">
               <input
                 ref={imageInputRef}
                 type="file"
@@ -1557,24 +1741,6 @@ export function ChannelView({
                     <ImageIcon className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
                     <span>Upload a File</span>
                   </button>
-
-                  {/* Create Poll (Disabled) */}
-                  <button
-                    disabled
-                    className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
-                  >
-                    <FileUp className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
-                    <span>Create Poll</span>
-                  </button>
-
-                  {/* Use Apps (Disabled) */}
-                  <button
-                    disabled
-                    className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13px] font-medium text-zinc-400 dark:text-zinc-600 cursor-not-allowed text-left"
-                  >
-                    <Film className="size-4 shrink-0 text-zinc-400 dark:text-zinc-600 opacity-40" />
-                    <span>Use Apps</span>
-                  </button>
                 </PopoverContent>
               </Popover>
 
@@ -1608,7 +1774,7 @@ export function ChannelView({
                   !pendingImages.every((img) => img.remoteUrl !== null) ||
                   isUploadingImages
                 }
-                className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
+                className="size-7 rounded-lg flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-550 dark:hover:bg-indigo-400 disabled:opacity-35 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 transition-all shadow-md shrink-0 active:scale-95"
               >
                 <Send className="size-3.5" />
               </button>
@@ -1803,6 +1969,11 @@ export function ChannelView({
             onReaction={handleToggleReaction}
             onPin={handleTogglePin}
             pinnedIds={pinnedIds}
+            sendingIds={sendingIds}
+            isLoading={threadLoading}
+            hasMore={!!threadCursor}
+            isLoadingMore={threadLoadingMore}
+            onLoadMore={handleLoadMoreReplies}
           />
         )}
       </div>
@@ -1838,6 +2009,11 @@ function ThreadPanel({
   onReaction,
   onSendReply,
   pinnedIds,
+  sendingIds,
+  isLoading,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   activeThreadParentId: string;
   messages: MessageWithUser[];
@@ -1850,26 +2026,30 @@ function ThreadPanel({
   onReaction: (messageId: string, emoji: string) => void;
   onPin: (messageId: string) => void;
   pinnedIds: Set<string>;
+  sendingIds: Set<string>;
+  isLoading: boolean;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
 }) {
   const parentMessage = messages.find((m) => m.id === activeThreadParentId);
-  const replies = messages.filter(
-    (m) => m.threadParentId === activeThreadParentId,
-  );
+  const replies = messages
+    .filter((m) => m.threadParentId === activeThreadParentId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   const [replyInput, setReplyInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastReplyIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [replies.length]);
+    if (isLoading) return;
+    const latestReply = replies[replies.length - 1];
+    const latestReplyId = latestReply?.id ?? null;
 
-  if (!parentMessage) {
-    return (
-      <aside className="w-96 shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col items-center justify-center bg-white dark:bg-zinc-950 p-4">
-        <span className="size-5 border border-zinc-400 border-t-transparent rounded-full animate-spin mb-2" />
-        <p className="text-xs text-zinc-500">Loading thread...</p>
-      </aside>
-    );
-  }
+    if (latestReplyId !== lastReplyIdRef.current) {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    lastReplyIdRef.current = latestReplyId;
+  }, [replies, isLoading]);
 
   const handleSubmit = () => {
     if (!replyInput.trim()) return;
@@ -1884,14 +2064,46 @@ function ThreadPanel({
     }
   };
 
+  const ThreadSkeleton = () => (
+    <div className="p-4 space-y-4 animate-pulse">
+      <div className="flex items-start gap-2.5">
+        <div className="size-9 rounded-full bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="h-3.5 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-2.5 w-12 rounded bg-zinc-100 dark:bg-zinc-850" />
+          </div>
+          <div className="h-3 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-3 w-1/2 rounded bg-zinc-100 dark:bg-zinc-850" />
+        </div>
+      </div>
+      <div className="h-px bg-zinc-100 dark:bg-zinc-800/80" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-start gap-2.5">
+          <div className="size-8 rounded-full bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-20 rounded bg-zinc-200 dark:bg-zinc-800" />
+              <div className="h-2.5 w-10 rounded bg-zinc-100 dark:bg-zinc-850" />
+            </div>
+            <div className="h-3 w-2/3 rounded bg-zinc-100 dark:bg-zinc-850" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <aside className="w-[420px] shrink-0 border-l border-zinc-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden h-full z-20">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-md shrink-0">
-        <div className="flex flex-col min-w-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageSquare className="size-4 text-zinc-500 dark:text-zinc-400" />
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             Thread
           </span>
-          <span className="text-xs text-zinc-400 truncate">#{channelName}</span>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">
+            #{channelName}
+          </span>
         </div>
         <button
           onClick={onClose}
@@ -1901,99 +2113,126 @@ function ThreadPanel({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div className="pb-4 border-b border-zinc-100 dark:border-zinc-800/80">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-8 shrink-0">
-              <AvatarImage src={parentMessage.user.image ?? ""} />
-              <AvatarFallback>
-                {getInitials(parentMessage.user.name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-50">
-                  {parentMessage.user.name}
-                </span>
-                <span className="text-[10px] text-zinc-400">
-                  {new Date(parentMessage.createdAt).toLocaleDateString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              {parentMessage.content && (
-                <p className="text-sm text-zinc-750 dark:text-zinc-355 break-all mt-1 leading-relaxed">
-                  {renderContent(parentMessage.content)}
-                </p>
-              )}
-              {parentMessage.images.length > 0 && (
-                <div className="mt-2">
-                  <ImageGrid images={parentMessage.images} />
+      {isLoading ? (
+        <ThreadSkeleton />
+      ) : !parentMessage ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <Loader2 className="size-5 text-zinc-400 animate-spin mb-2" />
+          <p className="text-xs text-zinc-500">Loading thread...</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+              <div className="flex items-start gap-2.5">
+                <Avatar className="size-9 shrink-0">
+                  <AvatarImage src={parentMessage.user.image ?? ""} />
+                  <AvatarFallback className="text-[10px] font-semibold">
+                    {getInitials(parentMessage.user.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-50">
+                      {parentMessage.user.name}
+                    </span>
+                    <span className="text-[10px] text-zinc-400">
+                      {new Date(parentMessage.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  {parentMessage.content && (
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300 break-all mt-1 leading-relaxed">
+                      {renderContent(parentMessage.content)}
+                    </p>
+                  )}
+                  {parentMessage.images.length > 0 && (
+                    <div className="mt-2">
+                      <ImageGrid images={parentMessage.images} />
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 py-0.5">
+              <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                {replies.length} {replies.length === 1 ? "reply" : "replies"}
+              </span>
+              <div className="flex-1 h-px bg-zinc-100 dark:bg-zinc-800/80" />
+            </div>
+
+            {hasMore && (
+              <button
+                onClick={onLoadMore}
+                disabled={isLoadingMore}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isLoadingMore ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ChevronUp className="size-3.5" />
+                )}
+                {isLoadingMore ? "Loading..." : "Load older replies"}
+              </button>
+            )}
+
+            <div className="space-y-0.5">
+              {replies.map((reply, index) => {
+                const prev = replies[index - 1];
+                const isSameUser = prev && prev.userId === reply.userId;
+
+                const isTimeClose =
+                  prev &&
+                  new Date(reply.createdAt).getTime() -
+                    new Date(prev.createdAt).getTime() <
+                    120000;
+
+                const isCompact = isSameUser && isTimeClose;
+
+                return (
+                  <MessageItem
+                    key={reply.id}
+                    message={reply}
+                    currentUserId={currentUserId}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onReaction={onReaction}
+                    onPin={onPin}
+                    isPinned={pinnedIds.has(reply.id)}
+                    isCompact={isCompact}
+                    isSending={sendingIds.has(reply.id)}
+                  />
+                );
+              })}
+              <div ref={scrollRef} />
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-            {replies.length} repl{replies.length === 1 ? "y" : "ies"}
-          </span>
-          <div className="flex-1 h-px bg-zinc-100 dark:bg-zinc-800/80" />
-        </div>
-
-        <div className="space-y-1">
-          {replies.map((reply, index) => {
-            const prev = replies[index - 1];
-            const isSameUser = prev && prev.userId === reply.userId;
-
-            const isTimeClose =
-              prev &&
-              new Date(reply.createdAt).getTime() -
-                new Date(prev.createdAt).getTime() <
-                120000;
-
-            const isCompact = isSameUser && isTimeClose;
-
-            return (
-              <MessageItem
-                key={reply.id}
-                message={reply}
-                currentUserId={currentUserId}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onReaction={onReaction}
-                onPin={onPin}
-                isPinned={pinnedIds.has(reply.id)}
-                isCompact={isCompact}
+          <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
+            <div className="flex items-end gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 px-3 py-2.5 focus-within:border-indigo-500/50 dark:focus-within:border-indigo-400/50 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:focus-within:ring-indigo-400/5 transition-all shadow-xs">
+              <textarea
+                value={replyInput}
+                onChange={(e) => setReplyInput(e.target.value)}
+                rows={1}
+                onKeyDown={handleKeyDown}
+                placeholder="Reply..."
+                className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
+                style={{ fieldSizing: "content" }}
               />
-            );
-          })}
-          <div ref={scrollRef} />
-        </div>
-      </div>
-
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-950">
-        <div className="flex items-end gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 focus-within:ring-2 focus-within:ring-zinc-900/10 dark:focus-within:ring-zinc-400/10 transition-all">
-          <textarea
-            value={replyInput}
-            onChange={(e) => setReplyInput(e.target.value)}
-            rows={1}
-            onKeyDown={handleKeyDown}
-            placeholder="Reply..."
-            className="flex-1 text-sm bg-transparent outline-none text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 resize-none min-h-[24px] max-h-[120px]"
-            style={{ fieldSizing: "content" }}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={!replyInput.trim()}
-            className="size-7 rounded-md flex items-center justify-center bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors shrink-0"
-          >
-            <Send className="size-3.5" />
-          </button>
-        </div>
-      </div>
+              <button
+                onClick={handleSubmit}
+                disabled={!replyInput.trim()}
+                className="size-7 rounded-lg flex items-center justify-center bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-550 dark:hover:bg-indigo-400 disabled:opacity-35 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 transition-all shadow-md shrink-0 active:scale-95"
+              >
+                <Send className="size-3.5" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </aside>
   );
 }

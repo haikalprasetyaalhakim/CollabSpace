@@ -58,6 +58,8 @@ export function LeaveChannelButton({
   const [name, setName] = useState(channelName);
   const [description, setDescription] = useState(channelDescription ?? "");
 
+  if (!isOwner) return null;
+
   const handleLeave = () => {
     startTransition(async () => {
       const result = await leaveChannel(channelId);

@@ -53,37 +53,37 @@ export default function WorkspaceOnboardingForm({
   };
 
   return (
-    <div className="relative rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-xl shadow-xl overflow-hidden p-6 transition-all duration-300">
+    <div className="relative rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/35 backdrop-blur-md shadow-xl overflow-hidden p-8 transition-all duration-300">
       {hasWorkspace && defaultWorkspaceId && (
         <button
           type="button"
           onClick={() => router.push(`/workspaces/${defaultWorkspaceId}`)}
-          className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+          className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
           aria-label="Back to workspace"
         >
           <X className="size-4" />
         </button>
       )}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center size-12 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 mb-3 shadow-md">
-          <Sparkles className="size-5 animate-pulse" />
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center size-12 rounded-2xl bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-950 mb-4 shadow-sm">
+          <Sparkles className="size-5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+        <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
           Welcome to CollabSpace
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1.5 leading-relaxed font-normal">
           Create a new workspace or join an existing one to collaborate.
         </p>
       </div>
 
       <Tabs defaultValue="create" className="w-full">
-        <TabsList className="grid grid-cols-2 mb-6 w-full">
-          <TabsTrigger value="create" className="flex items-center gap-2">
-            <PlusCircle className="size-4" />
+        <TabsList className="grid grid-cols-2 mb-6 w-full h-9 p-1">
+          <TabsTrigger value="create" className="flex items-center gap-1.5 text-xs font-semibold">
+            <PlusCircle className="size-3.5" />
             Create Workspace
           </TabsTrigger>
-          <TabsTrigger value="join" className="flex items-center gap-2">
-            <UserPlus className="size-4" />
+          <TabsTrigger value="join" className="flex items-center gap-1.5 text-xs font-semibold">
+            <UserPlus className="size-3.5" />
             Join Workspace
           </TabsTrigger>
         </TabsList>
@@ -105,16 +105,16 @@ export default function WorkspaceOnboardingForm({
                 onChange={(e) => setWorkspaceName(e.target.value)}
                 disabled={isLoading}
                 required
-                className="h-10 bg-transparent"
+                className="h-9 text-xs bg-transparent border-zinc-200 dark:border-zinc-800"
               />
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-550 leading-relaxed font-normal">
                 Choose a clear name. You can change this later in settings.
               </p>
             </div>
             <Button
               type="submit"
               disabled={isLoading || !workspaceName.trim()}
-              className="w-full h-10 mt-2 bg-zinc-950 dark:bg-zinc-50 hover:opacity-90 transition-all font-semibold"
+              className="w-full h-9 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm border-0 font-semibold mt-2 text-xs"
             >
               {isLoading ? "Creating..." : "Create Workspace"}
             </Button>
@@ -135,16 +135,16 @@ export default function WorkspaceOnboardingForm({
                 disabled={isLoading}
                 required
                 maxLength={10}
-                className="h-10 bg-transparent tracking-widest uppercase text-center font-mono text-base"
+                className="h-9 bg-transparent tracking-widest uppercase text-center font-mono text-xs border-zinc-200 dark:border-zinc-800"
               />
-              <p className="text-[11px] text-zinc-400 text-center">
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-550 text-center leading-relaxed font-normal">
                 Ask the owner of the workspace for their invite code.
               </p>
             </div>
             <Button
               type="submit"
               disabled={isLoading || !inviteCode.trim()}
-              className="w-full h-10 mt-2 bg-zinc-950 dark:bg-zinc-50 hover:opacity-90 transition-all font-semibold"
+              className="w-full h-9 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm border-0 font-semibold mt-2 text-xs"
             >
               {isLoading ? "Joining..." : "Join Workspace"}
             </Button>

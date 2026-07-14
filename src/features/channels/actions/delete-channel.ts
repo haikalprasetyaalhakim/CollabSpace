@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { ActionResult } from "@/types/action";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { broadcastToChannel } from "@/lib/sse";
 
 export async function deleteChannel(channelId: string): Promise<ActionResult> {
   try {
@@ -23,6 +24,8 @@ export async function deleteChannel(channelId: string): Promise<ActionResult> {
         success: false,
         error: "Only the channel owner can delete this channel.",
       };
+
+    broadcastToChannel(channelId, { type: "channel-deleted" });
 
     await prisma.channel.delete({
       where: { id: channelId },

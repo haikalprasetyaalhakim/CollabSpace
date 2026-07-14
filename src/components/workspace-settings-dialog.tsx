@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { BANNER_COLORS } from "@/constants";
 import AvatarUpload from "@/features/settings/components/avatar-upload";
 import { deleteWorkspace } from "@/features/workspaces/actions/delete-workspace";
@@ -345,10 +346,11 @@ export function WorksapceSettingsDialog({
                     >
                       <div className="absolute -bottom-6 left-4 size-14 rounded-full border-4 border-zinc-950 overflow-hidden bg-zinc-900 flex items-center justify-center">
                         {imageUrl ? (
-                          <img
+                          <Image
                             src={imageUrl}
                             alt="preview icon"
-                            className="size-full object-cover"
+                            fill
+                            className="object-cover"
                           />
                         ) : (
                           <span className="font-bold text-lg text-white">

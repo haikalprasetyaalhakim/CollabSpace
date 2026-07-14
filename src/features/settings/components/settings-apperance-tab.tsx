@@ -7,7 +7,7 @@ export default function SettingsAppearanceTab() {
   const { setTheme, theme } = useTheme();
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-6">
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-6 sm:p-8 backdrop-blur-xs flex flex-col shadow-xs">
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
           Appearance
@@ -19,41 +19,41 @@ export default function SettingsAppearanceTab() {
 
       <div className="flex flex-col gap-y-1.5">
         <div className="flex flex-col gap-y-1">
-          <p className="text-xs font-medium text-zinc-900 dark:text-zinc-200">
+          <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-200">
             Theme
           </p>
           <div className="grid grid-cols-3 gap-3 pt-2">
             <button
               onClick={() => setTheme("light")}
-              className={`flex flex-col items-center justify-center gap-3 rounded-md border p-4 text-sm font-medium transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+              className={`flex flex-col items-center justify-center gap-2.5 rounded-xl border p-4 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                 theme === "light"
-                  ? "border-zinc-900 bg-zinc-100 dark:border-zinc-50 dark:bg-zinc-800"
-                  : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                  ? "border-indigo-500 bg-indigo-50/30 text-indigo-600 dark:text-indigo-400 dark:border-indigo-500 dark:bg-indigo-500/5 shadow-xs"
+                  : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800/60 dark:bg-zinc-900/45 dark:hover:bg-zinc-900 text-zinc-500 dark:text-zinc-400"
               }`}
             >
-              <Sun className="h-5 w-5" />
+              <Sun className="h-4.5 w-4.5" />
               Light
             </button>
             <button
               onClick={() => setTheme("dark")}
-              className={`flex flex-col items-center justify-center gap-3 rounded-md border p-4 text-sm font-medium transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+              className={`flex flex-col items-center justify-center gap-2.5 rounded-xl border p-4 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                 theme === "dark"
-                  ? "border-zinc-900 bg-zinc-100 dark:border-zinc-50 dark:bg-zinc-800"
-                  : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                  ? "border-indigo-500 bg-indigo-50/30 text-indigo-600 dark:text-indigo-400 dark:border-indigo-500 dark:bg-indigo-500/5 shadow-xs"
+                  : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800/60 dark:bg-zinc-900/45 dark:hover:bg-zinc-900 text-zinc-500 dark:text-zinc-400"
               }`}
             >
-              <Moon className="h-5 w-5" />
+              <Moon className="h-4.5 w-4.5" />
               Dark
             </button>
             <button
               onClick={() => setTheme("system")}
-              className={`flex flex-col items-center justify-center gap-3 rounded-md border p-4 text-sm font-medium transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+              className={`flex flex-col items-center justify-center gap-2.5 rounded-xl border p-4 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                 theme === "system"
-                  ? "border-zinc-900 bg-zinc-100 dark:border-zinc-50 dark:bg-zinc-800"
-                  : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                  ? "border-indigo-500 bg-indigo-50/30 text-indigo-600 dark:text-indigo-400 dark:border-indigo-500 dark:bg-indigo-500/5 shadow-xs"
+                  : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800/60 dark:bg-zinc-900/45 dark:hover:bg-zinc-900 text-zinc-500 dark:text-zinc-400"
               }`}
             >
-              <Monitor className="h-5 w-5" />
+              <Monitor className="h-4.5 w-4.5" />
               System
             </button>
           </div>

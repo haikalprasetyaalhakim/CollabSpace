@@ -116,7 +116,18 @@ export default function VoiceChannelView({
     if (pcsRef.current[peerId]) return pcsRef.current[peerId];
 
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+      iceServers: [
+        { urls: ["stun:stun.l.google.com:19302"] },
+        { urls: ["stun:openrelay.metered.ca:80"] },
+        {
+          urls: [
+            "turn:openrelay.metered.ca:80",
+            "turn:openrelay.metered.ca:443",
+          ],
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+      ],
     });
 
     if (currentUserId < peerId) {
@@ -273,7 +284,7 @@ export default function VoiceChannelView({
 
           const queue = iceCandidateQueues.current[senderId] ?? [];
           for (const candidate of queue) {
-            if (pc.signalingState === "closed") break;
+            if ((pc.signalingState as string) === "closed") break;
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           }
           iceCandidateQueues.current[senderId] = [];
@@ -378,7 +389,7 @@ export default function VoiceChannelView({
 
         const queue = iceCandidateQueues.current[senderId] ?? [];
         for (const candidate of queue) {
-          if (pc.signalingState === "closed") break;
+          if ((pc.signalingState as string) === "closed") break;
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
         iceCandidateQueues.current[senderId] = [];
@@ -393,7 +404,7 @@ export default function VoiceChannelView({
       const pc = pcsRef.current[senderId];
       if (pc) {
         try {
-          if (pc.signalingState === "closed") return;
+          if ((pc.signalingState as string) === "closed") return;
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
           console.log(
             `✅ CALLER: Connection locked (connected) with peer: ${senderId}`,
@@ -401,7 +412,7 @@ export default function VoiceChannelView({
 
           const queue = iceCandidateQueues.current[senderId] ?? [];
           for (const candidate of queue) {
-            if (pc.signalingState === "closed") break;
+            if ((pc.signalingState as string) === "closed") break;
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           }
           iceCandidateQueues.current[senderId] = [];
