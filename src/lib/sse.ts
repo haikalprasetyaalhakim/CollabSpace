@@ -2,7 +2,7 @@ import { pusherServer } from "./pusher";
 
 type BroadcastData = {
   type: string;
-  data?: any;
+  [key: string]: any;
 };
 
 const globalForSSE = global as unknown as {
