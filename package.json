@@ -30,6 +30,8 @@
     "nodemailer": "^8.0.4",
     "pg": "^8.20.0",
     "prisma": "^7.6.0",
+    "pusher": "^5.3.4",
+    "pusher-js": "^8.5.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",

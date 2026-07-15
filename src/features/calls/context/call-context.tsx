@@ -2,6 +2,8 @@
 
 import { DmMessageWithUser } from "@/features/dm/queries/get-dm-messages";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import { getPusherClient } from "@/lib/pusher-client";
 import CallOverlay from "../components/call-overlay";
 import { toast } from "sonner";
 
@@ -58,6 +60,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     Map<string, DmMessageWithUser[]>
   >(new Map());
 
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user?.id;
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isRemoteMuted, setIsRemoteMuted] = useState(false);
@@ -94,12 +99,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, [isCameraOff]);
 
   useEffect(() => {
-    const eventSource = new EventSource("/api/notifications");
+    const pusher = getPusherClient();
+    if (!pusher || !currentUserId) return;
 
-    eventSource.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
+    const channel = pusher.subscribe(`user-${currentUserId}`);
 
-      if (data.type === "call-offer") {
+    channel.bind_global(async (eventName: string, data: any) => {
+      if (eventName === "call-offer") {
         if (callStateRef.current !== "idle") {
           fetch("/api/calls", {
             method: "POST",
@@ -120,7 +126,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setCallState("ringing");
       }
 
-      if (data.type === "call-answer") {
+      if (eventName === "call-answer") {
         if (pcRef.current) {
           await pcRef.current.setRemoteDescription(
             new RTCSessionDescription(data.data),
@@ -139,7 +145,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      if (data.type === "call-ice-candidate") {
+      if (eventName === "call-ice-candidate") {
         const pc = pcRef.current;
 
         if (!pc || !pc.remoteDescription) {
@@ -149,7 +155,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      if (data.type === "call-reject") {
+      if (eventName === "call-reject") {
         if (data.data?.reason === "busy") {
           toast.info(
             `${otherUserRef.current?.name ?? "User"} is currently busy in another call.`,
@@ -158,11 +164,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         cleanupCall();
       }
 
-      if (data.type === "call-hangup") {
+      if (eventName === "call-hangup") {
         cleanupCall();
       }
 
-      if (data.type === "new-direct-message") {
+      if (eventName === "new-direct-message") {
         setIncomingMessages((prev) => {
           const newMap = new Map(prev);
           const existing = newMap.get(data.conversationId) ?? [];
@@ -170,14 +176,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           return newMap;
         });
       }
-    };
+    });
 
-    eventSource.onerror = () => {
-      console.error("[Call SSE] Koneksi terputus");
+    return () => {
+      pusher.unsubscribe(`user-${currentUserId}`);
     };
-
-    return () => eventSource.close();
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (callState !== "calling") {

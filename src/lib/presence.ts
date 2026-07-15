@@ -1,3 +1,6 @@
+import { pusherServer } from "./pusher";
+import { redis } from "./rate-limit";
+
 export type VoiceParticipant = {
   id: string;
   name: string;
@@ -75,13 +78,10 @@ export function getOnlineUserIds(): string[] {
 }
 
 export function updateUserStatus(userId: string, status: string): void {
-  if (userStatuses.has(userId)) {
-    userStatuses.set(userId, status);
-    broadcastPresence();
-  }
+  pusherServer.trigger("presence-global", "status-updated", { userId, status });
 }
 
-export function userJoinedVoice(
+export async function userJoinedVoice(
   userId: string,
   channelId: string,
   details?: {
@@ -91,36 +91,34 @@ export function userJoinedVoice(
     isCameraOff: boolean;
     isSpeaking: boolean;
   },
-): void {
-  activeVoiceChannels.set(userId, channelId);
+) {
+  const participant = {
+    id: userId,
+    channelId,
+    name: details?.name ?? "User",
+    image: details?.image ?? null,
+    isMuted: details?.isMuted ?? false,
+    isCameraOff: details?.isCameraOff ?? false,
+    isSpeaking: details?.isSpeaking ?? false,
+  };
 
-  if (details) {
-    voiceParticipants.set(userId, {
-      id: userId,
-      channelId,
-      ...details,
-    });
-  } else if (!voiceParticipants.has(userId)) {
-    voiceParticipants.set(userId, {
-      id: userId,
-      channelId,
-      name: "User",
-      image: null,
-      isMuted: false,
-      isCameraOff: false,
-      isSpeaking: false,
-    });
-  }
+  await redis.hset("presence:voice-channels", { [userId]: channelId });
+  await redis.hset("presence:voice-participants", {
+    [userId]: JSON.stringify(participant),
+  });
 
-  broadcastPresence();
+  await pusherServer.trigger("presence-global", "voice-joined", {
+    userId,
+    channelId,
+    participant,
+  });
 }
 
-export function userLeftVoice(userId: string) {
-  if (activeVoiceChannels.get(userId)) {
-    activeVoiceChannels.delete(userId);
-    voiceParticipants.delete(userId);
-    broadcastPresence();
-  }
+export async function userLeftVoice(userId: string) {
+  await redis.hdel("presence:voice-channels", userId);
+  await redis.hdel("presence:voice-participants", userId);
+
+  await pusherServer.trigger("presence-global", "voice-left", { userId });
 }
 
 function broadcastPresence(): void {
@@ -157,18 +155,8 @@ function broadcastPresence(): void {
   }
 }
 
-export function sendTargetEvent(userId: string, data: unknown): void {
-  const controllers = presenceSubscribers.get(userId);
-  if (!controllers) return;
-
-  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
-  controllers.forEach((ctrl) => {
-    try {
-      ctrl.enqueue(encoded);
-    } catch (error) {
-      controllers.delete(ctrl);
-    }
-  });
+export function sendTargetEvent(userId: string, data: any): void {
+  pusherServer.trigger(`user-${userId}`, data.type, data);
 }
 
 if (process.env.NODE_ENV !== "test") {

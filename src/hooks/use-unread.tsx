@@ -1,5 +1,7 @@
 "use client";
 
+import { authClient } from "@/lib/auth-client";
+import { getPusherClient } from "@/lib/pusher-client";
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
@@ -41,6 +43,9 @@ export function UnreadProvider({
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
   const router = useRouter();
+
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user?.id;
 
   const [channelUnread, setChannelUnread] = useState(initialChannelUnread);
   const [conversationUnread, setConversationUnread] = useState(
@@ -111,13 +116,15 @@ export function UnreadProvider({
   }, [pathname]);
 
   useEffect(() => {
-    const eventSource = new EventSource("/api/notifications");
+    const pusher = getPusherClient();
+    if (!pusher || !currentUserId) return;
 
-    eventSource.onmessage = (evt) => {
-      const data = JSON.parse(evt.data);
+    const channel = pusher.subscribe(`user-${currentUserId}`);
+
+    channel.bind_global((eventName: string, data: any) => {
       const currentPath = pathnameRef.current;
 
-      if (data.type === "new-channel-message") {
+      if (eventName === "new-channel-message") {
         const { channelId } = data as { channelId: string };
         if (currentPath === `/channels/${channelId}`) {
           markChannelRead(channelId);
@@ -129,7 +136,7 @@ export function UnreadProvider({
         }
       }
 
-      if (data.type === "new-dm-message") {
+      if (eventName === "new-dm-message") {
         const { conversationId } = data as { conversationId: string };
 
         if (!knownConversationIdsRef.current.has(conversationId)) {
@@ -147,7 +154,7 @@ export function UnreadProvider({
         }
       }
 
-      if (data.type === "mention" && data.channelId) {
+      if (eventName === "mention" && data.channelId) {
         const { channelId, messageId } = data as {
           channelId: string;
           messageId: string;
@@ -162,7 +169,7 @@ export function UnreadProvider({
         }
       }
 
-      if (data.type === "mention" && data.conversationId) {
+      if (eventName === "mention" && data.conversationId) {
         const { conversationId, messageId } = data as {
           conversationId: string;
           messageId: string;
@@ -177,14 +184,12 @@ export function UnreadProvider({
           });
         }
       }
-    };
+    });
 
-    eventSource.onerror = () => {
-      console.error("[Notification SSE] Connection lost");
+    return () => {
+      pusher.unsubscribe(`user-${currentUserId}`);
     };
-
-    return () => eventSource.close();
-  }, [markChannelRead, markConversationRead]);
+  }, [currentUserId, markChannelRead, markConversationRead]);
 
   return (
     <UnreadContext.Provider

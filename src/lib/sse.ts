@@ -1,3 +1,10 @@
+import { pusherServer } from "./pusher";
+
+type BroadcastData = {
+  type: string;
+  data?: any;
+};
+
 const globalForSSE = global as unknown as {
   subscribers: Map<string, Set<ReadableStreamDefaultController>>;
 };
@@ -33,18 +40,8 @@ export function removeSubscriber(
   if (controllers.size === 0) subscribers.delete(channelId);
 }
 
-export function broadcastToChannel(channelId: string, data: unknown) {
-  const controllers = subscribers.get(channelId);
-  if (!controllers) return;
-
-  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
-  controllers.forEach((cntrl) => {
-    try {
-      cntrl.enqueue(encoded);
-    } catch (error) {
-      controllers.delete(cntrl);
-    }
-  });
+export function broadcastToChannel(channelId: string, data: BroadcastData) {
+  pusherServer.trigger(channelId, data.type, data);
 }
 
 if (process.env.NODE_ENV !== "test") {

@@ -1,5 +1,7 @@
 "use client";
 
+import { authClient } from "@/lib/auth-client";
+import { getPusherClient } from "@/lib/pusher-client";
 import { useParams, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -45,37 +47,148 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
   const currentWorkspaceId = params.workspaceId as string | undefined;
 
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user.id;
+
   useEffect(() => {
-    const eventSource = new EventSource("/api/presence");
-    eventSource.onmessage = (evt) => {
-      const data = JSON.parse(evt.data);
-      if (data.type === "presence") {
-        setOnlineUserIds(new Set(data.onlineUserIds as string[]));
-        setUserStatuses(new Map(Object.entries(data.userStatuses ?? {})));
-        setActiveVoiceChannels(
-          new Map(Object.entries(data.activeVoiceChannels ?? {})),
-        );
-        setVoiceParticipants(
-          new Map(Object.entries(data.voiceParticipants ?? {})),
-        );
-      } else if (
-        data.type === "kick" &&
-        data.workspaceId == currentWorkspaceId
-      ) {
+    const pusher = getPusherClient();
+    if (!pusher || !currentUserId) return;
+
+    const channel = pusher.subscribe("presence-global");
+
+    channel.bind("pusher:subscription_succeeded", (members: any) => {
+      const userIds = new Set<string>();
+      const statuses = new Map<string, string>();
+      const voiceChannels = new Map<string, string>();
+      const participants = new Map<string, VoiceParticipant>();
+
+      members.each((member: any) => {
+        userIds.add(member.id);
+        statuses.set(member.id, member.info.status || "online");
+        if (member.info.voiceChannelId) {
+          voiceChannels.set(member.id, member.info.voiceChannelId);
+          participants.set(member.id, member.info.voiceParticipant);
+        }
+      });
+
+      setOnlineUserIds(userIds);
+      setUserStatuses(statuses);
+      setActiveVoiceChannels(voiceChannels);
+      setVoiceParticipants(participants);
+    });
+
+    channel.bind("pusher:member_added", (member: any) => {
+      setOnlineUserIds((prev) => {
+        const next = new Set(prev);
+        next.add(member.id);
+        return next;
+      });
+      setUserStatuses((prev) => {
+        const next = new Map(prev);
+        next.set(member.id, member.info.status || "online");
+        return next;
+      });
+      if (member.info.voiceChannelId) {
+        setActiveVoiceChannels((prev) => {
+          const next = new Map(prev);
+          next.set(member.id, member.info.voiceChannelId);
+          return next;
+        });
+        setVoiceParticipants((prev) => {
+          const next = new Map(prev);
+          next.set(member.id, member.info.voiceParticipant);
+          return next;
+        });
+      }
+    });
+
+    channel.bind("pusher:member_removed", (member: any) => {
+      setOnlineUserIds((prev) => {
+        const next = new Set(prev);
+        next.delete(member.id);
+        return next;
+      });
+      setUserStatuses((prev) => {
+        const next = new Map(prev);
+        next.delete(member.id);
+        return next;
+      });
+      setActiveVoiceChannels((prev) => {
+        const next = new Map(prev);
+        next.delete(member.id);
+        return next;
+      });
+      setVoiceParticipants((prev) => {
+        const next = new Map(prev);
+        next.delete(member.id);
+        return next;
+      });
+    });
+
+    channel.bind(
+      "status-updated",
+      (data: { userId: string; status: string }) => {
+        setUserStatuses((prev) => {
+          const next = new Map(prev);
+          next.set(data.userId, data.status);
+          return next;
+        });
+      },
+    );
+
+    channel.bind(
+      "voice-joined",
+      (data: {
+        userId: string;
+        channelId: string;
+        participant: VoiceParticipant;
+      }) => {
+        setActiveVoiceChannels((prev) => {
+          const next = new Map(prev);
+          next.set(data.userId, data.channelId);
+          return next;
+        });
+        setVoiceParticipants((prev) => {
+          const next = new Map(prev);
+          next.set(data.userId, data.participant);
+          return next;
+        });
+      },
+    );
+
+    channel.bind("voice-left", (data: { userId: string }) => {
+      setActiveVoiceChannels((prev) => {
+        const next = new Map(prev);
+        next.delete(data.userId);
+        return next;
+      });
+      setVoiceParticipants((prev) => {
+        const next = new Map(prev);
+        next.delete(data.userId);
+        return next;
+      });
+    });
+
+    const personalChannel = pusher.subscribe(`user-${currentUserId}`);
+    personalChannel.bind("kick", (data: any) => {
+      if (data.workspaceId === currentWorkspaceId) {
         toast.error("You've been kicked from this workspace");
         router.push("/dashboard");
         router.refresh();
-      } else if (data.type && data.type.startsWith("voice-")) {
-        window.dispatchEvent(new CustomEvent(data.type, { detail: data }));
       }
-    };
+    });
 
-    eventSource.onerror = () => {
-      console.error("[Presence SSE] Connection lost, reconnecting...");
-    };
+    personalChannel.bind_global((eventName: string, data: any) => {
+      if (eventName.startsWith("voice-")) {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: data }));
+      }
+    });
 
-    return () => eventSource.close();
-  }, []);
+    return () => {
+      pusher.unsubscribe("presence-global");
+      pusher.unsubscribe(`user-${currentUserId}`);
+    };
+  }, [currentUserId, currentWorkspaceId]);
 
   return (
     <PresenceContext.Provider
