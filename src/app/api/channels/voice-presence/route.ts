@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const userId = session.user.id;
 
   if (action === "join" || action === "update") {
-    userJoinedVoice(userId, channelId, {
+    await userJoinedVoice(userId, channelId, {
       name: name ?? session.user.name,
       image: image ?? session.user.image ?? null,
       isMuted: isMuted ?? false,
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       isSpeaking: isSpeaking ?? false,
     });
   } else {
-    userLeftVoice(userId);
+    await userLeftVoice(userId);
   }
 
   return Response.json({ success: true }, { status: 200 });

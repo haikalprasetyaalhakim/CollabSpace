@@ -2,8 +2,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SidebarInset } from "@/components/ui/sidebar";
 import prisma from "@/lib/prisma";
 import { serverCompReqAuth } from "@/lib/server-comp-req-auth";
-import { getInitials } from "@/lib/utils";
-import { ArrowRight, Hash, ImageIcon, MessageSquare } from "lucide-react";
+import { getInitials, getAttachmentMeta } from "@/lib/utils";
+import { ArrowRight, Hash, ImageIcon, MessageSquare, FileUp } from "lucide-react";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ImageGrid } from "@/components/image-grid";
@@ -196,11 +196,69 @@ export default async function Page({ params }: Props) {
                       </p>
                     ) : null}
 
-                    {thread.images.length > 0 && (
-                      <div className="mt-2.5 max-w-xs">
-                        <ImageGrid images={thread.images} />
-                      </div>
-                    )}
+                    {(() => {
+                      const parsed = thread.images.map(getAttachmentMeta);
+                      const threadImages = parsed.filter((a) => a.isImg).map((a) => a.downloadUrl);
+                      const threadVideos = parsed.filter((a) => a.isVid);
+                      const threadFiles = parsed.filter((a) => !a.isImg && !a.isVid);
+
+                      return (
+                        <div className="mt-2 space-y-2">
+                          {threadImages.length > 0 && (
+                            <div className="max-w-xs rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                              <ImageGrid images={threadImages} />
+                            </div>
+                          )}
+                          {threadVideos.length > 0 && (
+                            <div className="space-y-1.5">
+                              {threadVideos.map((vid) => (
+                                <div
+                                  key={vid.downloadUrl}
+                                  className="relative rounded-lg overflow-hidden border border-zinc-250 dark:border-zinc-700 bg-black/10 dark:bg-black/40"
+                                >
+                                  <video
+                                    src={vid.downloadUrl}
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full max-h-40 block object-contain"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {threadFiles.length > 0 && (
+                            <div className="space-y-1.5">
+                              {threadFiles.map((file) => (
+                                <div
+                                  key={file.downloadUrl}
+                                  className="flex items-center gap-2 p-2 rounded-lg border border-zinc-200 dark:border-zinc-750 bg-white dark:bg-zinc-900/50 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/80 transition-colors"
+                                >
+                                  <FileUp className="size-4 text-zinc-500 shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p
+                                      className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 truncate"
+                                      title={file.name}
+                                    >
+                                      {file.name}
+                                    </p>
+                                    <a
+                                      href={file.downloadUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download={file.name}
+                                      className="text-[9px] text-blue-500 hover:underline mt-0.5 block font-medium"
+                                    >
+                                      Download File
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
