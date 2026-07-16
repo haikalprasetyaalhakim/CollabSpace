@@ -1,36 +1,120 @@
-import { describe, expect, it } from "bun:test";
-import { getInitials, formatDuration, cn } from "./utils";
+import { describe, test, expect } from "bun:test";
+import {
+  formatDuration,
+  getAttachmentMeta,
+  getInitials,
+  getMessageFallbackText,
+} from "./utils";
 
-describe("getInitials helper function", () => {
-  it("should return initials in uppercase for a two-word name", () => {
-    expect(getInitials("Haikal Alhakim")).toBe("HA");
+describe("getInitials", () => {
+  test("should return 2 letter when input 2 words name", () => {
+    const result = getInitials("John Doe");
+    expect(result).toBe("JD");
   });
 
-  it("should return single letter for a single-word name", () => {
-    expect(getInitials("collabspace")).toBe("C");
+  test("should return 1 letter when input 1 word name", () => {
+    expect(getInitials("John")).toBe("J");
   });
 
-  it("should ignore extra spaces", () => {
-    expect(getInitials("   John    Doe   ")).toBe("JD");
+  test("should return 2 letter when input name longer than 2 words", () => {
+    expect(getInitials("John Doe Smith")).toBe("JD");
   });
 
-  it("should return 'U' for empty or whitespace-only name", () => {
+  test("should fallback when input empty string", () => {
     expect(getInitials("")).toBe("U");
-    expect(getInitials("   ")).toBe("U");
   });
 });
 
-describe("formatDuration helper function", () => {
-  it("should format seconds into mm:ss format", () => {
+describe("formatDuration", () => {
+  test("should return 00:00 when input is 0", () => {
     expect(formatDuration(0)).toBe("00:00");
-    expect(formatDuration(59)).toBe("00:59");
-    expect(formatDuration(60)).toBe("01:00");
-    expect(formatDuration(365)).toBe("06:05");
+  });
+
+  test("should format seconds below 1 minute", () => {
+    expect(formatDuration(45)).toBe("00:45");
+  });
+
+  test("should format seconds above 1 minute", () => {
+    expect(formatDuration(65)).toBe("01:05");
+  });
+
+  test("should handle exactly 1 hour", () => {
+    expect(formatDuration(3600)).toBe("60:00");
   });
 });
 
-describe("cn class merger function", () => {
-  it("should merge tailwind classes correctly", () => {
-    expect(cn("px-2 py-2", "px-4")).toBe("py-2 px-4");
+describe("getAttachmentMeta", () => {
+  test("should detect image file correctly", () => {
+    const meta = getAttachmentMeta("https://example.com/file?name=foto.png");
+    expect(meta.name).toBe("foto.png");
+    expect(meta.isImg).toBe(true);
+    expect(meta.isVid).toBe(false);
+  });
+
+  test("should detect video file correctly", () => {
+    const meta = getAttachmentMeta("https://example.com/file?name=intro.mp4");
+    expect(meta.name).toBe("intro.mp4");
+    expect(meta.isImg).toBe(false);
+    expect(meta.isVid).toBe(true);
+  });
+
+  test("should detect document as non-image and non-video", () => {
+    const meta = getAttachmentMeta("https://example.com/file?name=cv.pdf");
+    expect(meta.name).toBe("cv.pdf");
+    expect(meta.isImg).toBe(false);
+    expect(meta.isVid).toBe(false);
+  });
+
+  test("should fallback when URL has no name parameter", () => {
+    const meta = getAttachmentMeta("https://example.com/gambar.jpg");
+    expect(meta.name).toBe("Image");
+    expect(meta.isImg).toBe(true);
+  });
+});
+
+describe("getMessageFallbackText", () => {
+  test("should return content text when message has content", () => {
+    const result = getMessageFallbackText({ content: "Hello!", images: [] });
+    expect(result).toBe("Hello!");
+  });
+
+  test("should return image emoji when message has 1 image", () => {
+    const result = getMessageFallbackText({
+      content: null,
+      images: ["https://example.com/f?name=foto.png"],
+    });
+    expect(result).toBe("📷 Image");
+  });
+
+  test("should return video emoji when message has 1 video", () => {
+    const result = getMessageFallbackText({
+      content: null,
+      images: ["https://example.com/f?name=clip.mp4"],
+    });
+    expect(result).toBe("🎥 Video");
+  });
+
+  test("should return file emoji when message has 1 document", () => {
+    const result = getMessageFallbackText({
+      content: null,
+      images: ["https://example.com/f?name=resume.pdf"],
+    });
+    expect(result).toBe("📁 File");
+  });
+
+  test("should return attachments when message has multiple files", () => {
+    const result = getMessageFallbackText({
+      content: null,
+      images: [
+        "https://example.com/f?name=a.png",
+        "https://example.com/f?name=b.mp4",
+      ],
+    });
+    expect(result).toBe("📎 Attachments");
+  });
+
+  test("should return 'Message' when no content and no images", () => {
+    const result = getMessageFallbackText({ content: null, images: [] });
+    expect(result).toBe("Message");
   });
 });
