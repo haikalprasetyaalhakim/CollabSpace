@@ -27,6 +27,10 @@ jobs:
       - name: Install depedencies
         run: bun install
 
+      # Step C-2: Generate Prisma Client
+      - name: Generate Prisma Client
+        run: bun x prisma generate
+
       # Step D: Run the linting command
       - name: Run lint checker
         run: bun run lint
