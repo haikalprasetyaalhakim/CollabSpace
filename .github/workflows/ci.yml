@@ -1,0 +1,32 @@
+# 1. Name of workflow
+name: Code Quality Check
+
+# 2. When this workflow running?
+on:
+  push:
+    branches:
+      - main # Run this robot every time there is a push to main branch
+
+# 3. What kind of job should robot do?
+jobs:
+  lint-check:
+    runs-on: ubuntu-latest # Run the robot on free virtual box(ubuntu) owned by github
+
+    steps:
+      # Step A: Download the code from Github repo to Virtual Computer Linux
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      # Step B: Install runtime Bun on Virtual Linux
+      - name: Setup Bun environment
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Step C: Install all app depedencies
+      - name: Install depedencies
+        run: bun install
+
+      # Step D: Run the linting command
+      - name: Run lint checker
+        run: bun run lint
