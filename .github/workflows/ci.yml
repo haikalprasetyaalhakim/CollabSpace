@@ -30,3 +30,11 @@ jobs:
       # Step D: Run the linting command
       - name: Run lint checker
         run: bun run lint
+
+      # Step E: Run Typescript type checker
+      - name: Run type checker
+        run: bun x tsc --noEmit
+
+      # Step F: Run production build
+      - name: Run build checker
+        run: bun run build
