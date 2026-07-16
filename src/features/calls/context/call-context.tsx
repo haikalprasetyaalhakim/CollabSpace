@@ -273,7 +273,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     sendControlMessage({ type: "mute-state", isMuted, isCameraOff: next });
   };
 
-  const cleanupCall = () => {
+  function cleanupCall() {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
         track.stop();

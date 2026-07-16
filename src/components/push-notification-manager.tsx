@@ -36,7 +36,7 @@ export default function PushNotificationManager() {
     }
   }, []);
 
-  const syncSubscription = async (reg: ServiceWorkerRegistration) => {
+  async function syncSubscription(reg: ServiceWorkerRegistration) {
     try {
       let subscription = await reg.pushManager.getSubscription();
 

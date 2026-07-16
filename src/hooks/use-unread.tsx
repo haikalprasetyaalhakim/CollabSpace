@@ -121,6 +121,7 @@ export function UnreadProvider({
 
     const channel = pusher.subscribe(`user-${currentUserId}`);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     channel.bind_global((eventName: string, data: any) => {
       const currentPath = pathnameRef.current;
 
