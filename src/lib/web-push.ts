@@ -5,10 +5,12 @@ const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 const vapidSubject = process.env.VAPID_SUBJECT;
 
-if (vapidPublicKey && vapidPrivateKey && vapidSubject) {
+const isValidVapidSubject = vapidSubject && (vapidSubject.startsWith("mailto:") || vapidSubject.startsWith("http://") || vapidSubject.startsWith("https://"));
+
+if (vapidPublicKey && vapidPrivateKey && isValidVapidSubject) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 } else {
-  console.warn("VAPID credentials are missing in env!");
+  console.warn("VAPID credentials or subject are missing or invalid in env!");
 }
 
 interface PushPayload {
