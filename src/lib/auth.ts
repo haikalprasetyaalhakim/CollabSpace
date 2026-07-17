@@ -8,8 +8,11 @@ import {
 } from "./email";
 import prisma from "./prisma";
 
+const authUrl = process.env?.["BETTER_AUTH_URL"];
+const isValidAuthUrl = authUrl && (authUrl.startsWith("https://") || authUrl.startsWith("http://"));
+
 export const auth = betterAuth({
-  baseURL: process.env?.["BETTER_AUTH_URL"],
+  baseURL: isValidAuthUrl ? authUrl : "http://localhost:3000",
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),

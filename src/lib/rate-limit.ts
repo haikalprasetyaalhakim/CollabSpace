@@ -1,9 +1,12 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const isValidUrl = redisUrl && (redisUrl.startsWith("https://") || redisUrl.startsWith("http://"));
+
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: isValidUrl ? redisUrl : "https://mock-redis.upstash.io",
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || "mock-token",
 });
 
 type Options = {
