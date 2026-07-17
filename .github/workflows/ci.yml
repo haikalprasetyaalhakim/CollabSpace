@@ -49,7 +49,7 @@ jobs:
 
       # Step G: Install Playwright Browsers
       - name: Install Playwright Browsers
-        run: bun x playwright intall --with-deps
+        run: bun x playwright install --with-deps
 
       # Step H: Run E2E Tests
       - name: Run Playwright tests
