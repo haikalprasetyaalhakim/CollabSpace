@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, spyOn } from "bun:test";
+import { describe, test, expect, mock } from "bun:test";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
 

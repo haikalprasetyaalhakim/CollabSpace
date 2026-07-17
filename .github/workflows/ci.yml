@@ -39,6 +39,18 @@ jobs:
       - name: Run type checker
         run: bun x tsc --noEmit
 
-      # Step F: Run production build
+      # Step F: Run Unit & Integration Tests
+      - name: Run unit & integration tests
+        run: bun test src/
+
+      # Step F-2: Run production build
       - name: Run build checker
         run: bun run build
+
+      # Step G: Install Playwright Browsers
+      - name: Install Playwright Browsers
+        run: bun x playwright intall --with-deps
+
+      # Step H: Run E2E Tests
+      - name: Run Playwright tests
+        run: bun x playwright test

@@ -35,6 +35,7 @@ export default async function RootLayout({
     <html
       lang="en"
       className={cn("h-full", "antialiased", "font-sans", inter.variable)}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
