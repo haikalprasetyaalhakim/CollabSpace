@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SubmitEvent, useState } from "react";
 import { toast } from "sonner";
@@ -116,10 +116,17 @@ export default function ResetPasswordForm({ token }: { token: string }) {
 
       <Button
         type="submit"
-        className="w-full h-10 mt-1 bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 border-0 shadow-none text-sm font-medium transition-colors"
+        className="w-full h-10 mt-2 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 text-xs font-semibold shadow-xs hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
         disabled={isPending}
       >
-        {isPending ? "Resetting..." : "Reset Password"}
+        {isPending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            <span>Resetting password...</span>
+          </>
+        ) : (
+          <span>Reset Password</span>
+        )}
       </Button>
     </form>
   );

@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
+import { Mail, ArrowLeft, Send, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { Mail, ArrowLeft, Send } from "lucide-react";
 
 export default function Page() {
   const [email, setEmail] = useState("");
@@ -60,7 +60,12 @@ export default function Page() {
                   Check your email
                 </h1>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-normal">
-                  If <strong className="text-zinc-800 dark:text-zinc-200">{email}</strong> is registered, we sent a password reset link. Check your inbox.
+                  If{" "}
+                  <strong className="text-zinc-800 dark:text-zinc-200">
+                    {email}
+                  </strong>{" "}
+                  is registered, we sent a password reset link. Check your
+                  inbox.
                 </p>
               </div>
               <p className="text-[10px] text-zinc-400 dark:text-zinc-600 font-normal">
@@ -74,7 +79,8 @@ export default function Page() {
                   Forgot password?
                 </h1>
                 <p className="text-xs text-zinc-555 dark:text-zinc-400">
-                  Enter your email address and we&apos;ll send you a password reset link.
+                  Enter your email address and we&apos;ll send you a password
+                  reset link.
                 </p>
               </div>
 
@@ -100,10 +106,19 @@ export default function Page() {
                 <Button
                   type="submit"
                   disabled={isPending}
-                  className="w-full h-9 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 text-xs font-semibold transition-colors mt-2 gap-1.5"
+                  className="w-full h-10 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 text-xs font-semibold shadow-xs hover:-translate-y-0.5 transition-all mt-2 gap-2 flex items-center justify-center"
                 >
-                  {isPending ? "Sending..." : "Send reset link"}
-                  {!isPending && <Send className="size-3" />}
+                  {isPending ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>Sending reset link...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send reset link</span>
+                      <Send className="size-3" />
+                    </>
+                  )}
                 </Button>
               </form>
             </>

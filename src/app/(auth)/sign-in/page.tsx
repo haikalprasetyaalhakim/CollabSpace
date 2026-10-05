@@ -42,14 +42,6 @@ export default function SignInPage() {
             </p>
           </div>
 
-          <GoogleAuthButton />
-
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-zinc-150 dark:bg-zinc-805" />
-            <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-zinc-600">or</span>
-            <div className="flex-1 h-px bg-zinc-150 dark:bg-zinc-805" />
-          </div>
-
           <SignInForm />
 
           <p className="text-center text-[10px] text-zinc-400 dark:text-zinc-600 leading-relaxed font-normal">

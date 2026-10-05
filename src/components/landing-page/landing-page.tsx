@@ -10,7 +10,6 @@ import {
   MessageSquare,
   Radio,
   Smile,
-  Sparkles,
   User,
   Volume2,
   X,

@@ -31,8 +31,8 @@ export default function SignUpPage() {
         </p>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-6 py-12 z-10">
-        <div className="w-full max-w-[400px] flex flex-col gap-6 bg-white dark:bg-zinc-900/35 border border-zinc-200 dark:border-zinc-800 p-8 rounded-2xl shadow-xl backdrop-blur-md my-8">
+      <div className="flex-1 flex items-center justify-center px-4 py-8 z-10">
+        <div className="w-full max-w-[440px] flex flex-col gap-6 bg-white dark:bg-zinc-900/40 border border-zinc-200/90 dark:border-zinc-800 p-7 sm:p-8 rounded-2xl shadow-xl backdrop-blur-md my-4">
           <div className="text-center flex flex-col gap-1.5">
             <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
               Create your account
@@ -40,14 +40,6 @@ export default function SignUpPage() {
             <p className="text-xs text-zinc-550 dark:text-zinc-400">
               Start collaborating with your team in seconds.
             </p>
-          </div>
-
-          <GoogleAuthButton />
-
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-zinc-150 dark:bg-zinc-805" />
-            <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-zinc-600">or</span>
-            <div className="flex-1 h-px bg-zinc-150 dark:bg-zinc-805" />
           </div>
 
           <SignUpForm />
