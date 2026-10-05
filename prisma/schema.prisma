@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -180,7 +181,6 @@ model Conversation {
   conversationReads ConversationRead[]
 
   @@unique([memberOneId, memberTwoId, workspaceId])
-
   @@index([workspaceId])
   @@index([memberOneId])
   @@index([memberTwoId])
